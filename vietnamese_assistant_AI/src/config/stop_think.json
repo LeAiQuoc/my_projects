@@ -1,0 +1,17 @@
+{
+    "id": "1a1a0326-e791-4457-97f0-83b429fe8147",
+    "scriptName": "Erase Think",
+    "findRegex": "^[\\s\\S]*</think>(?![\\s\\S]*</think>)",
+    "replaceString": "",
+    "trimStrings": [],
+    "placement": [
+        2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": false,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+}

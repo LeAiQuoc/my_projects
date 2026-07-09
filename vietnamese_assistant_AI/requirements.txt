@@ -1,0 +1,20 @@
+# Core voice assistant dependencies
+numpy
+PyAudio
+openai-whisper
+ollama
+gTTS
+argostranslate
+pygame
+requests
+
+# Light Speed (training/inference) dependencies
+torch
+tensorflow
+matplotlib
+tqdm
+librosa
+tensorboard
+
+# Optional: install local wheel to use Piper CLI from Python environments
+# ./piper_tts-1.2.0-py3-none-any.whl
