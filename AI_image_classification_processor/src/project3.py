@@ -2,6 +2,12 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+IMAGE_DIR = PROJECT_ROOT / "assets" / "images"
+CASCADE_FILE = PROJECT_ROOT / "assets" / "cascades" / "haarcascade_frontalface_default.xml"
+OUTPUT_DIR = PROJECT_ROOT / "output"
 
 class MyImageProcessor:
     def __init__(self, image_path):
@@ -89,8 +95,8 @@ class MyImageProcessor:
 
     def detect_faces(self):
         # Use CascadeClassifier
-        if os.path.exists("haarcascade_frontalface_default.xml"):
-             casc_path = "haarcascade_frontalface_default.xml"
+           if CASCADE_FILE.exists():
+               casc_path = str(CASCADE_FILE)
         else:
              casc_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
              
@@ -127,14 +133,15 @@ if __name__ == "__main__":
     # Test Project 3
     try:
         print("Testing MyImageProcessor on shapes.jpg...")
-        processor = MyImageProcessor("shapes.jpg")
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        processor = MyImageProcessor(str(IMAGE_DIR / "shapes.jpg"))
         
         processor.bgr_2_rgb_convertor()
         processor.bgr_2_gray_scale_convertor()
         processor._50_percent_resizer()
-        processor.image_writer("output_original.jpg")
-        processor.frame_it("output_framed.jpg")
-        processor.find_center("output_center.jpg")
+        processor.image_writer(str(OUTPUT_DIR / "output_original.jpg"))
+        processor.frame_it(str(OUTPUT_DIR / "output_framed.jpg"))
+        processor.find_center(str(OUTPUT_DIR / "output_center.jpg"))
         img_faces, count = processor.detect_faces()
         print(f"Faces found: {count}")
         print("Project 3 Test Complete.")

@@ -1,18 +1,30 @@
 import cv2
 import numpy as np
 import os
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+MODEL_DIR = PROJECT_ROOT / "assets" / "models"
+IMAGE_DIR = PROJECT_ROOT / "assets" / "images"
+VIDEO_DIR = PROJECT_ROOT / "assets" / "videos"
+CROPS_DIR = PROJECT_ROOT / "output" / "crops"
 
 class image_classification:
     def __init__(self):
+       yolov3_weights = MODEL_DIR / "yolov3.weights"
+       yolov3_cfg = MODEL_DIR / "yolov3.cfg"
+       yolov3_tiny_weights = MODEL_DIR / "yolov3-tiny.weights"
+       yolov3_tiny_cfg = MODEL_DIR / "yolov3-tiny.cfg"
+
         # Using Standard YOLOv3 (better than tiny, but slower)
         # Check if standard weights exist, else fall back to tiny? 
         # For now, forcing standard since user asked for it.
-        if os.path.exists("yolov3.weights") and os.path.exists("yolov3.cfg"):
+       if yolov3_weights.exists() and yolov3_cfg.exists():
              print("Loading YOLOv3 Standard Model...")
-             self.net = cv2.dnn.readNet("yolov3.weights", "yolov3.cfg")
+           self.net = cv2.dnn.readNet(str(yolov3_weights), str(yolov3_cfg))
         else:
              print("Loading YOLOv3 Tiny Model...")
-             self.net = cv2.dnn.readNet("yolov3-tiny.weights", "yolov3-tiny.cfg")
+           self.net = cv2.dnn.readNet(str(yolov3_tiny_weights), str(yolov3_tiny_cfg))
         
         # Try to enable GPU (CUDA) if available
         # This requires OpenCV to be built with CUDA support. 
@@ -26,7 +38,7 @@ class image_classification:
         except:
              pass
 
-        with open("coco.names", "r") as f:
+        with open(MODEL_DIR / "coco.names", "r", encoding="utf-8") as f:
             self.classes = [line.strip() for line in f.readlines()]
             
         self.layer_names = self.net.getLayerNames()
@@ -47,20 +59,19 @@ class image_classification:
         }
         
         self.cat_folders = {
-            "Human": "1 Human",
-            "Vehicles": "2 Vehicles",
-            "Animal": "3 Animal",
-            "Sport": "4 Sport and Lifestyle",
-            "Kitchen": "5 Kitchen stuff",
-            "Food": "6 food",
-            "In house": "7 In house things",
-            "MISC": "8 MISC"
+            "Human": CROPS_DIR / "human",
+            "Vehicles": CROPS_DIR / "vehicles",
+            "Animal": CROPS_DIR / "animals",
+            "Sport": CROPS_DIR / "sport_lifestyle",
+            "Kitchen": CROPS_DIR / "kitchen",
+            "Food": CROPS_DIR / "food",
+            "In house": CROPS_DIR / "in_house",
+            "MISC": CROPS_DIR / "misc"
         }
         
         # Create directories
         for folder in self.cat_folders.values():
-            if not os.path.exists(folder):
-                os.makedirs(folder)
+            folder.mkdir(parents=True, exist_ok=True)
 
     def get_category_folder(self, label):
         for cat, items in self.categories.items():
@@ -76,7 +87,7 @@ class image_classification:
             if img is None:
                 print(f"Error reading {image_source}")
                 return
-            img_name = os.path.splitext(os.path.basename(image_source))[0]
+            img_name = Path(image_source).stem
         else:
             img = image_source
             img_name = f"frame_{frame_count}"
@@ -150,9 +161,9 @@ class image_classification:
                         count_dict[label] += 1
                         
                     filename = f"{img_name}_{label}_{count_dict[label]}.jpg"
-                    save_path = os.path.join(folder, filename)
+                    save_path = folder / filename
                     
-                    cv2.imwrite(save_path, crop_img)
+                    cv2.imwrite(str(save_path), crop_img)
                     print(f"Saved {label} to {save_path} (Conf: {confidences[i]:.2f})")
 
     def process_video(self, video_path):
@@ -184,13 +195,16 @@ if __name__ == "__main__":
     
     # Example usage:
     print("--- Processing Forks ---")
-    if os.path.exists("Assorted_forks.jpg"):
-        classifier.process_image("Assorted_forks.jpg")
+    forks_image = IMAGE_DIR / "Assorted_forks.jpg"
+    if forks_image.exists():
+        classifier.process_image(str(forks_image))
     print("--- Processing Dog ---")
-    if os.path.exists("dog.jpg"):
-        classifier.process_image("dog.jpg")
+    dog_image = IMAGE_DIR / "dog.jpg"
+    if dog_image.exists():
+        classifier.process_image(str(dog_image))
         
     print("Project 2 intialized.")
     print("--- Processing Video ---")
-    if os.path.exists("test_video.mp4"):
-        classifier.process_video("test_video.mp4")
+    demo_video = VIDEO_DIR / "test_video.mp4"
+    if demo_video.exists():
+        classifier.process_video(str(demo_video))

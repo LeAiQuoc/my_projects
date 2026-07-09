@@ -1,5 +1,5 @@
 import cv2
-import numpy as np
+from pathlib import Path
 
 def detect_shape(contour):
     # Approximate the contour
@@ -28,8 +28,9 @@ def detect_shape(contour):
     return shape_name
 
 def project1():
-    image_path = "shapes.jpg"
-    img = cv2.imread(image_path)
+    project_root = Path(__file__).resolve().parent.parent
+    image_path = project_root / "assets" / "images" / "shapes.jpg"
+    img = cv2.imread(str(image_path))
     
     if img is None:
         print(f"Error: Could not read image {image_path}")

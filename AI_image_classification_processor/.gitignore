@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+.venv/
+venv/
+env/
+
+output/crops/
+output/*.jpg
+output/*.png
+
+assets/models/*.weights
