@@ -1,5 +1,6 @@
 # Ignore large local binaries
 resources/binaries/ffmpeg/bin/
+resources/binaries/ffmpeg/doc/
 resources/binaries/mpv/
 resources/binaries/*.dll
 resources/wheels/
