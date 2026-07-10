@@ -17,6 +17,7 @@ dependencies = [
   "yt-dlp>=2026.1.1",
   "faster-whisper>=1.1.0",
   "openai>=1.54.0",
+  "mcp>=1.10.0",
 ]
 
 [project.optional-dependencies]

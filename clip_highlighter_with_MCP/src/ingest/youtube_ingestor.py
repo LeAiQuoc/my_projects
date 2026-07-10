@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from src.config.settings import settings
 from src.models.schemas import VideoAsset
 
 
@@ -75,16 +77,21 @@ async def _run_command(command: list[str]) -> tuple[str, str]:
     return stdout, stderr
 
 
+def _build_yt_dlp_command(*args: str) -> list[str]:
+    """Build a yt-dlp command bound to the active Python interpreter."""
+
+    return [sys.executable, "-m", "yt_dlp", *args]
+
+
 async def _fetch_metadata(url: str) -> dict:
     """Fetch metadata for a YouTube URL without downloading media."""
 
-    command = [
-        "yt-dlp",
+    command = _build_yt_dlp_command(
         "--no-playlist",
         "--dump-single-json",
         "--skip-download",
         url,
-    ]
+    )
 
     try:
         stdout, _ = await _run_command(command)
@@ -119,17 +126,25 @@ async def ingest_youtube_url(url: str, output_dir: Path) -> VideoAsset:
     if not video_id:
         raise YouTubeMetadataError("Video metadata missing required id field")
 
-    command = [
-        "yt-dlp",
+    # Reuse existing download for this video ID to keep repeated runs fast.
+    preferred_existing = output_dir / f"{video_id}.mp4"
+    if preferred_existing.exists():
+        return VideoAsset(source_url=url, local_path=preferred_existing, video_id=video_id, title=title)
+
+    existing_candidates = sorted(output_dir.glob(f"{video_id}.*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if existing_candidates:
+        return VideoAsset(source_url=url, local_path=existing_candidates[0], video_id=video_id, title=title)
+
+    command = _build_yt_dlp_command(
         "--no-playlist",
         "-f",
-        "bv*+ba/b",
+        settings.youtube_download_format,
         "--merge-output-format",
         "mp4",
         "-o",
         output_template,
         url,
-    ]
+    )
 
     try:
         await _run_command(command)

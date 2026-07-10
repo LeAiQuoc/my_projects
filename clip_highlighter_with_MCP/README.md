@@ -54,6 +54,62 @@ cd G:\my_projects\clip_highlighter_with_MCP
 
 Generated clips will be written under `assets/output`.
 
+## Run MCP Server (PowerShell)
+Use these steps to run the full app through MCP as an end user.
+
+### 1. Open terminal in project root
+```powershell
+cd G:\my_projects\clip_highlighter_with_MCP
+```
+
+### 2. Ensure your .env has DeepSeek key
+```text
+DEEPSEEK_API_KEY=your_key_here
+```
+
+### 3. Start the MCP server (Terminal A)
+```powershell
+cd G:\my_projects\clip_highlighter_with_MCP
+.\.venv\Scripts\python.exe -m src.mcp.server
+```
+
+Keep this terminal running.
+
+### 4. Start MCP Inspector (Terminal B)
+```powershell
+cd G:\my_projects\clip_highlighter_with_MCP
+npx @modelcontextprotocol/inspector --command ".\.venv\Scripts\python.exe" --args "-m","src.mcp.server"
+```
+
+If prompted by npx on first run, accept installation.
+
+### 5. Call the full app tool
+In MCP Inspector:
+- Select tool: run_full_pipeline
+- Provide input:
+
+```json
+{
+	"url": "https://www.youtube.com/watch?v=VIDEO_ID"
+}
+```
+
+### 6. Check outputs
+- Final clips are written to assets/output
+- Temporary files are cleaned from assets/temp
+
+### Available MCP tools
+- ingest_youtube
+- transcribe_media
+- select_highlights
+- cut_video_clips
+- caption_video_clips
+- reframe_video_clips
+- cleanup_temp
+- run_full_pipeline
+
+Use run_full_pipeline for one-shot processing, or call tools one-by-one for custom orchestration.
+
 ## Useful Commands (PowerShell)
 ```powershell
 # Run tests
@@ -65,5 +121,5 @@ Generated clips will be written under `assets/output`.
 ```
 
 ## Notes
-- MCP integration is intentionally deferred to a final phase.
+- MCP adapter layer is implemented as a thin wrapper over the existing pipeline modules.
 - Local-first execution is prioritized to keep testing cost low.

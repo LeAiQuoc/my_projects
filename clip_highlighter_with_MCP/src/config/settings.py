@@ -24,6 +24,10 @@ class AppSettings(BaseSettings):
     caption_font_size: int = Field(default=18, alias="CAPTION_FONT_SIZE")
     caption_margin_v: int = Field(default=72, alias="CAPTION_MARGIN_V")
     caption_max_line_chars: int = Field(default=22, alias="CAPTION_MAX_LINE_CHARS")
+    youtube_download_format: str = Field(
+        default="bv*[height<=1080]+ba/b[height<=1080]/b",
+        alias="YTDLP_FORMAT",
+    )
 
     assets_dir: Path = Path("assets")
     input_dir: Path = Path("assets/input")
