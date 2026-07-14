@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cv-coverletter-agent"
+version = "0.1.0"
+description = "A Deepseek-powered CV and cover letter generation scaffold"
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.40.0",
+  "pydantic>=2.7.0",
+  "pyyaml>=6.0.1",
+  "python-dotenv>=1.0.1",
+  "click>=8.1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-asyncio>=0.23.7",
+  "pytest-mock>=3.14.0",
+  "black>=24.4.0",
+  "ruff>=0.5.0",
+]
+
+[project.scripts]
+cv-coverletter = "src.main:cli"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
