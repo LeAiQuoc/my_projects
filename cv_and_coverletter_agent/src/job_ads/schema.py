@@ -1,0 +1,28 @@
+"""Schema for structured job ad parsing output."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class JobAd(BaseModel):
+    """Structured representation of a job ad or posting."""
+
+    company_name: str
+    role_title: str
+    required_skills: list[str] = Field(default_factory=list)
+    nice_to_have_skills: list[str] = Field(default_factory=list)
+    tone_signals: str
+    key_responsibilities: list[str] = Field(default_factory=list)
+    source_text: str | None = None
+    source_url: str | None = None
+
+    @field_validator("company_name", "role_title", "tone_signals")
+    @classmethod
+    def _strip_required_text(cls, value: str) -> str:
+        """Normalize required text fields and reject blank values."""
+
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("value must not be empty")
+        return cleaned
