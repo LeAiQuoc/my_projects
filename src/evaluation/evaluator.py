@@ -47,4 +47,4 @@ class Evaluator:
         """
 
         _ = draft, facts, job_ad, style_profile
-    raise NotImplementedError
+        raise NotImplementedError

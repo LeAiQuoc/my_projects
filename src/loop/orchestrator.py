@@ -9,6 +9,7 @@ from src.evaluation.evaluator import EvaluationResult, Evaluator
 from src.facts.facts_schema import FactsDatabase
 from src.generation.cover_letter_generator import CoverLetterGenerator
 from src.generation.cv_generator import CVGenerator
+from src.generation.sanitizer import sanitize_draft
 from src.job_ads.schema import JobAd
 from src.style.style_profile import StyleProfile
 
@@ -25,7 +26,7 @@ class OrchestrationResult:
 
 
 class GenerationOrchestrator:
-    """Template orchestrator for the future bounded retry loop."""
+    """Generate, sanitize, evaluate, and retry drafts in a bounded loop."""
 
     def __init__(
         self,
@@ -47,13 +48,72 @@ class GenerationOrchestrator:
         job_ad: JobAd,
         style_profile: StyleProfile,
     ) -> OrchestrationResult:
-        """Run the phase-6 orchestration flow once implemented."""
+        """Run bounded orchestration with deterministic sanitization before evaluation."""
 
-        _ = facts, job_ad, style_profile
-        raise NotImplementedError
+        last_evaluation: EvaluationResult | None = None
+        unresolved_issues: list[str] = []
+        cv_draft = ""
+        cover_letter_draft = ""
+
+        for attempt in range(1, self.max_retries + 1):
+            correction_note = self._build_correction_note(unresolved_issues)
+            cv_raw = await self.cv_generator.generate(
+                facts,
+                job_ad,
+                style_profile,
+                correction_note=correction_note,
+            )
+            cover_letter_raw = await self.cover_letter_generator.generate(
+                facts,
+                job_ad,
+                style_profile,
+                correction_note=correction_note,
+            )
+
+            # Deterministic cleanup runs before the evaluator to avoid avoidable
+            # retries caused by known banned vocabulary.
+            cv_draft = sanitize_draft(cv_raw)
+            cover_letter_draft = sanitize_draft(cover_letter_raw)
+            combined_draft = f"{cv_draft}\n\n{cover_letter_draft}".strip()
+
+            last_evaluation = await self.evaluator.evaluate(
+                combined_draft,
+                facts,
+                job_ad,
+                style_profile,
+            )
+            unresolved_issues = list(last_evaluation.issues)
+
+            if self.logger is not None:
+                self.logger.info(
+                    "orchestrator attempt %s complete (passed=%s)",
+                    attempt,
+                    last_evaluation.passed,
+                )
+
+            if last_evaluation.passed:
+                return OrchestrationResult(
+                    cv_draft=cv_draft,
+                    cover_letter_draft=cover_letter_draft,
+                    evaluation=last_evaluation,
+                    attempts=attempt,
+                    unresolved_issues=[],
+                )
+
+        if last_evaluation is None:
+            raise RuntimeError("orchestrator executed no attempts")
+
+        return OrchestrationResult(
+            cv_draft=cv_draft,
+            cover_letter_draft=cover_letter_draft,
+            evaluation=last_evaluation,
+            attempts=self.max_retries,
+            unresolved_issues=unresolved_issues,
+        )
 
     def _build_correction_note(self, issues: list[str]) -> str | None:
-        """Template for converting evaluator issues into retry guidance."""
+        """Convert evaluation issues into a concise retry directive."""
 
-        _ = issues
-        raise NotImplementedError
+        if not issues:
+            return None
+        return "; ".join(issue for issue in issues if issue)
