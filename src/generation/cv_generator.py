@@ -51,11 +51,16 @@ class CVGenerator:
         )
 
         client = self.client or _create_default_client()
+        temperature = _env_float("DEEPSEEK_CV_TEMPERATURE", 0.35)
+        frequency_penalty = _env_float("DEEPSEEK_CV_FREQUENCY_PENALTY", 0.2)
+        presence_penalty = _env_float("DEEPSEEK_CV_PRESENCE_PENALTY", 0.05)
 
         try:
             response = await client.chat.completions.create(
                 model=self.model,
-                temperature=0.35,
+                temperature=temperature,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -94,7 +99,10 @@ class CVGenerator:
             "1) Use ONLY the provided facts entries.\n"
             "2) Do NOT invent skills, achievements, timelines, or metrics.\n"
             "3) Prefer concise bullet points and role-relevant ordering.\n"
-            "4) Keep tone aligned with style profile data.\n\n"
+            "4) Keep tone aligned with style profile data.\n"
+            "5) Do NOT include notes, disclaimers, or commentary about missing requirements.\n"
+            "6) Do NOT include intention/opinion lines unless explicitly supported by facts.\n"
+            "7) Output only the CV content in Markdown, with no preface text.\n\n"
             f"Role target:\n"
             f"- Company: {job_ad.company_name}\n"
             f"- Role: {job_ad.role_title}\n"
@@ -252,3 +260,15 @@ def _format_fact(entry: FactsEntry) -> str:
         f"description={entry.description}; technologies={technologies}; "
         f"start={start_date}; end={end_date}; evidence={evidence}"
     )
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float from environment with safe fallback."""
+
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default

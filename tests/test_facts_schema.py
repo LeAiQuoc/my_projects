@@ -33,3 +33,13 @@ def test_facts_database_rejects_duplicate_ids() -> None:
 
     with pytest.raises(ValidationError):
         FactsDatabase(entries=[entry, entry])
+
+
+def test_facts_entry_rejects_missing_required_fields() -> None:
+    with pytest.raises(ValidationError):
+        FactsEntry(
+            id="exp-2",
+            category="experience",
+            title=" ",
+            description="Built services.",
+        )

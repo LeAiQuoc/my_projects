@@ -1,5 +1,123 @@
-# Starter facts database.
-# Replace this empty shell with your verified experience before generating real drafts.
-
-entries: []
-source_path: null
+entries:
+- id: experience-plejd-internship-software-ai-engineering
+  category: experience
+  title: plejd internship(software/ai engineering)
+  description: AI engineering intern at Plejd AB where I built an AI-powered GitLab
+    repository analyzer/README generator, combining backend engineering with applied
+    machine learning, RAG, and CI/CD integration in a production-facing workflow.
+  technologies:
+  - python
+  - mongodb
+  - machine-learning
+  - AI API integration
+  - CI/CD pipeline
+  - RAG
+  - Git/gitlab
+  evidence_url: https://github.com/LeAiQuoc/my_projects
+- id: project-ai-clip-highlighter
+  category: project
+  title: AI Clip Highlighter
+  description: Developed a Python application that turns YouTube videos into AI-selected,
+    captioned 9:16 highlight clips through a multi-stage pipeline with automated
+    processing, testing, and error handling using Python, faster-whisper, DeepSeek
+    API, and FFmpeg.
+  technologies:
+  - Python
+  - faster-whisper
+  - DeepSeek API
+  - FFmpeg
+- id: project-home-automation-diy-systems
+  category: project
+  title: Home Automation and DIY Systems
+  description: Built a Python and AutoHotkey automation system to control an AV
+    receiver via Broadlink IR and configured a Raspberry Pi 5 running Home Assistant
+    for smart home automation.
+  technologies:
+  - Python
+  - AutoHotkey
+  - Broadlink IR
+  - Raspberry Pi 5
+  - Home Assistant
+- id: education-teknikhogskolan-ai-software-development
+  category: education
+  title: Teknikhogskolan Higher Vocational Education Diploma in AI and Software Development
+  description: Studying AI and software development with practical focus on Python,
+    backend development, and applied AI workflows.
+  technologies:
+  - Python
+  - AI
+  - Software Development
+- id: education-chalmers-mechanical-engineering
+  category: education
+  title: Chalmers University of Technology BSc Mechanical Engineering
+  description: Completed 90 of 180 credits in mechanical engineering before changing
+    direction toward software and AI.
+  technologies:
+  - Mechanical Engineering
+  - Mathematics
+- id: experience-dagab-forklift-operator
+  category: experience
+  title: Forklift Operator at Dagab AB via Jobandtalent
+  description: Worked in a warehouse environment handling picking, packing, and
+    forklift driving at a fast pace; this work developed accuracy and the ability
+    to work independently under pressure, and I am comfortable working independently
+    and delivering accurate results.
+  technologies:
+  - Forklift A
+  - Forklift B
+  - Warehouse Operations
+  - Picking and Packing
+- id: experience-mings-palace-waiter
+  category: experience
+  title: Waiter at Ming's Palace
+  description: Worked as a waiter and built service experience in a fast-moving customer-facing
+    environment.
+  technologies:
+  - Customer Service
+  - Teamwork
+- id: experience-cnss-solutions-it-administrator
+  category: experience
+  title: IT Administrator at CNSS Solutions
+  description: Worked as an IT administrator handling system maintenance and technical
+    support, including practical troubleshooting in day-to-day technical operations.
+  technologies:
+  - System Maintenance
+  - Technical Support
+  - IT Administration
+- id: skill-languages
+  category: skill
+  title: Languages
+  description: Speak Swedish and Vietnamese natively and English fluently in both
+    speech and writing.
+  technologies:
+  - Swedish
+  - Vietnamese
+  - English
+- id: skill-programming-and-ai-tooling
+  category: skill
+  title: Programming and AI Tooling
+  description: Comfortable working with Python, SQL, scikit-learn, NumPy, Pandas,
+    OpenCV, RAG pipelines, prompt engineering, embeddings, and LLM API integrations,
+    and comfortable delivering production-facing tools and presenting technical progress
+    clearly. Comfortable working with RAG pipelines, prompt engineering, and embeddings.
+  technologies:
+  - Python
+  - SQL
+  - scikit-learn
+  - NumPy
+  - Pandas
+  - OpenCV
+  - RAG
+  - Prompt Engineering
+  - Gemini
+  - Claude
+  - GPT
+  - Ollama
+  - MCP
+- id: skill-driving-license
+  category: skill
+  title: Driving License
+  description: Hold a manual class B driver's license.
+  technologies:
+  - Driver's License B (Manual)
+source_path: data\facts.yaml

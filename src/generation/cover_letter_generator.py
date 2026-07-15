@@ -54,11 +54,16 @@ class CoverLetterGenerator:
         )
 
         client = self.client or _create_default_client()
+        temperature = _env_float("DEEPSEEK_COVER_TEMPERATURE", 0.62)
+        frequency_penalty = _env_float("DEEPSEEK_COVER_FREQUENCY_PENALTY", 0.35)
+        presence_penalty = _env_float("DEEPSEEK_COVER_PRESENCE_PENALTY", 0.15)
 
         try:
             response = await client.chat.completions.create(
                 model=self.model,
-                temperature=0.45,
+                temperature=temperature,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -97,7 +102,10 @@ class CoverLetterGenerator:
             "1) Use ONLY the selected facts entries.\n"
             "2) Do NOT invent skills, outcomes, dates, companies, or metrics.\n"
             "3) If required information is missing, avoid the claim entirely.\n"
-            "4) Keep it concise, specific, and role-matched.\n\n"
+            "4) Keep it concise, specific, and role-matched.\n"
+            "5) Do NOT include disclaimers, meta commentary, or notes about missing requirements.\n"
+            "6) Avoid opinion/intent language (for example: I believe, I look forward, eager to) unless explicit in facts.\n"
+            "7) Output only the cover letter content in Markdown, with no preface text.\n\n"
             f"Role target:\n"
             f"- Company: {job_ad.company_name}\n"
             f"- Role: {job_ad.role_title}\n"
@@ -158,3 +166,15 @@ def _format_fact(entry: FactsEntry) -> str:
         f"description={entry.description}; technologies={technologies}; "
         f"start={start_date}; end={end_date}; evidence={evidence}"
     )
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float from environment with safe fallback."""
+
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default

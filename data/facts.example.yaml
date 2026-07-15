@@ -1,0 +1,62 @@
+# Example facts file with fake data.
+# Use this as a reference for what to put in data/facts.yaml.
+
+entries:
+  - id: experience-northstar-labs-internship
+    category: experience
+    title: Northstar Labs Internship
+    description: Worked as a software engineering intern building internal tooling for documentation workflows and code search.
+    technologies:
+      - Python
+      - FastAPI
+      - PostgreSQL
+      - Docker
+      - Git
+    evidence_url: https://example.com/northstar-labs
+    start_date: 2024-01-15
+    end_date: 2024-06-15
+
+  - id: project-home-automation-observer
+    category: project
+    title: Home Automation Observer
+    description: Built a personal home automation dashboard that collected device events and displayed alerts for unusual patterns.
+    technologies:
+      - Python
+      - MQTT
+      - Docker
+      - Grafana
+    evidence_url: https://github.com/example-user/home-automation-observer
+    start_date: 2023-09-01
+
+  - id: project-ai-readme-helper
+    category: project
+    title: AI README Helper
+    description: Created a prototype tool that summarizes repositories and drafts README files from indexed code and documentation.
+    technologies:
+      - Python
+      - OpenAI-compatible API
+      - MongoDB
+      - RAG
+    evidence_url: https://github.com/example-user/ai-readme-helper
+    start_date: 2024-07-01
+
+  - id: education-bsc-software-engineering
+    category: education
+    title: BSc in Software Engineering
+    description: Studied software engineering with coursework in algorithms, backend systems, databases, and machine learning fundamentals.
+    technologies:
+      - Python
+      - Java
+      - SQL
+    evidence_url: https://example.edu/transcript
+    start_date: 2021-08-20
+
+  - id: skill-technical-writing
+    category: skill
+    title: Technical Writing
+    description: Comfortable explaining engineering decisions, documenting systems, and writing concise summaries of implementation tradeoffs.
+    technologies:
+      - Markdown
+      - Documentation
+
+source_path: data/facts.example.yaml

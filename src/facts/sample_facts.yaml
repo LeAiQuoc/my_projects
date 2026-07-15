@@ -1,6 +1,30 @@
 # Starter facts file.
 # Replace these placeholders with your own verified experience before generating
 # any real CV or cover letter drafts.
+#
+# Required fields for each fact entry:
+# - id: unique short identifier, for example plejd-internship-2024
+# - category: one of experience, project, skill, education, certification
+# - title: short label, for example Plejd Internship
+# - description: factual description you are comfortable reusing in applications
+#
+# Optional fields:
+# - technologies: list of concrete tools/languages
+# - evidence_url: GitHub, LinkedIn, portfolio, or other supporting link
+# - start_date / end_date: YYYY-MM-DD
+#
+# Example shape:
+# entries:
+#   - id: plejd-internship-2024
+#     category: experience
+#     title: Plejd Internship
+#     description: Worked on embedded and backend-adjacent product tasks in a real team environment.
+#     technologies:
+#       - Python
+#       - Git
+#     evidence_url: https://github.com/your-user/your-project
+#     start_date: 2024-01-15
+#     end_date: 2024-06-01
 
 entries: []
 source_path: null

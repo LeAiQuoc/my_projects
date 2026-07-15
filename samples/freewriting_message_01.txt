@@ -1,0 +1,7 @@
+When you do a project and use GitHub as a solo developer, do you need to create different branches and such when you're the sole developer? If so, why?
+
+When I keep pasting the copilot-instructions.md to Copilot, and prompt it to do each phase from the instructions md separately, isn't that a type of harness engineering?
+
+When you fill in the copilot-instructions.md for Copilot to have better memory of the project or whatever you want it to remember, is that also a type of harness or loop engineering?
+
+The facts input are in a yaml file and sample cover letter and job ad, short bio and freewriting letters are all arranged as inputs from different files. Is it not possible to gather all of these types of inputs in one single file for me to fill?
