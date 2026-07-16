@@ -35,3 +35,45 @@ def test_sanitize_draft_only_replaces_whole_words() -> None:
 
     assert "leveragedly" in sanitized
     assert " leverage " not in f" {sanitized.lower()} "
+
+
+def test_sanitize_draft_replaces_common_ai_phrases() -> None:
+    text = (
+        "My technical foundation in Python and backend engineering aligns with the role. "
+        "I am excited to leverage my skills in data engineering, and relevant tooling in my experience includes RAG. "
+        "I look forward to the opportunity to discuss further."
+    )
+
+    sanitized = sanitize_draft(text)
+
+    assert "my technical foundation" not in sanitized.lower()
+    assert "aligns with" not in sanitized.lower()
+    assert "excited to leverage" not in sanitized.lower()
+    assert "relevant tooling in my experience includes" not in sanitized.lower()
+    assert "look forward to the opportunity to discuss further" not in sanitized.lower()
+    assert "my background" in sanitized.lower()
+    assert "fits" in sanitized.lower()
+    assert "i use" in sanitized.lower()
+    assert "I've used" in sanitized
+    assert "happy to discuss further" in sanitized.lower()
+
+
+def test_sanitize_draft_rewrites_warehouse_triads() -> None:
+    text = "Handling picking, packing, and forklift driving at a fast pace."
+
+    sanitized = sanitize_draft(text)
+
+    assert "picking, packing, and forklift driving" not in sanitized.lower()
+    assert "warehouse operations" in sanitized.lower()
+    assert "picking/packing work" in sanitized.lower()
+    assert "forklift operation" in sanitized.lower()
+
+
+def test_sanitize_draft_normalizes_dash_characters() -> None:
+    text = "Teknikhögskolan — Higher Vocational Education Diploma – AI and Software Development"
+
+    sanitized = sanitize_draft(text)
+
+    assert "—" not in sanitized
+    assert "–" not in sanitized
+    assert "Teknikhögskolan - Higher Vocational Education Diploma - AI and Software Development" in sanitized

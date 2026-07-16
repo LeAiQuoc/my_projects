@@ -97,6 +97,7 @@ def _extract_company_name(text: str) -> str:
     """Infer a company name from common job-ad patterns."""
 
     for pattern in (
+        r"vi\s+p[aå]\s+([A-ZA-Za-z0-9&\- ]+?)\s+s[oö]ker",
         r"company[:\s]+(.+)",
         r"about\s+(.+?)\s+(?:is|are|we)",
         r"om\s+([A-ZA-Za-z0-9&\- ]+?)\s+i\s+[A-ZA-Za-z0-9&\- ]+",
@@ -111,6 +112,10 @@ def _extract_company_name(text: str) -> str:
 
 def _extract_role_title(text: str) -> str:
     """Infer the role title from the first line or common title markers."""
+
+    lower_text = text.lower()
+    if "intresseanmälan" in lower_text or "intresseanmalan" in lower_text:
+        return "Intresseanmälan"
 
     for pattern in (
         r"role[:\s]+(.+)",

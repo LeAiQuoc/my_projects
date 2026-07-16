@@ -222,7 +222,9 @@ class GenerationOrchestrator:
                 continue
 
             if "rhythm uniformity risk" in lower:
-                directives.append("Vary sentence lengths more naturally across paragraphs.")
+                directives.append(
+                    "Break the repeated rhythm: mix short punchy sentences with longer flowing ones across paragraphs."
+                )
                 continue
 
             if lower.startswith("template structure risk"):
@@ -325,16 +327,15 @@ def _ensure_cover_letter_differentiators(text: str, facts: FactsDatabase) -> str
         return text
 
     available = _available_differentiators_from_facts(facts)
-    if len(available) < 2:
+    if not available:
         return text
 
     draft_lower = draft.lower()
     present = [term for term in available if term.lower() in draft_lower]
-    if len(present) >= 2:
+    if present:
         return text
 
-    needed = [*present, *[term for term in available if term not in present]][:2]
-    sentence = f"Relevant tooling in my experience includes {', '.join(needed)}."
+    sentence = f"Relevant tooling in my experience includes {available[0]}."
     return f"{draft}\n\n{sentence}"
 
 

@@ -205,6 +205,25 @@ async def test_evaluator_flags_stock_cover_letter_phrases() -> None:
     assert result.per_check_scores["cover_letter_structure"] < 1.0
     assert any("template structure risk: stock phrases found" in issue for issue in result.issues)
 
+@pytest.mark.asyncio
+async def test_evaluator_flags_ai_phrase_tells() -> None:
+    evaluator = Evaluator(client=_FakeClient('{"unsupported_claims": [], "confidence": 0.95}'))
+
+    draft = (
+        "Dear Hiring Team,\n\n"
+        "I am excited to leverage my skills in Python and SQL. "
+        "My technical foundation in backend engineering aligns with the role. "
+        "Relevant tooling in my experience includes RAG and MCP. "
+        "I look forward to the opportunity to discuss further."
+    )
+    result = await evaluator.evaluate(draft, _sample_facts(), _sample_job_ad(), _sample_style())
+
+    assert result.passed is False
+    assert result.per_check_scores["ai_tone"] < 1.0
+    assert result.per_check_scores["cover_letter_structure"] < 1.0
+    assert any("generic phrases found" in issue for issue in result.issues)
+    assert any("template structure risk: stock phrases found" in issue for issue in result.issues)
+
 
 @pytest.mark.asyncio
 async def test_evaluator_flags_even_cover_letter_paragraph_lengths() -> None:

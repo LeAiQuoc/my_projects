@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 from openai import AsyncOpenAI, OpenAIError
@@ -77,7 +78,7 @@ class CoverLetterGenerator:
         client = self.client or _create_default_client()
         temperature = _env_float("DEEPSEEK_COVER_TEMPERATURE", 0.82)
         frequency_penalty = _env_float("DEEPSEEK_COVER_FREQUENCY_PENALTY", 0.15)
-        presence_penalty = _env_float("DEEPSEEK_COVER_PRESENCE_PENALTY", 0.15)
+        presence_penalty = _env_float("DEEPSEEK_COVER_PRESENCE_PENALTY", 0.35)
 
         try:
             response = await client.chat.completions.create(
@@ -97,6 +98,7 @@ class CoverLetterGenerator:
         if not content:
             raise RuntimeError("cover letter generation returned empty content")
         content = _ensure_differentiator_mention(content, selected_facts)
+        content = _ensure_soft_skill_grounding(content, selected_facts)
         return _remove_low_value_license_line(content, job_ad)
 
     def _build_prompt(
@@ -138,15 +140,19 @@ class CoverLetterGenerator:
             "11) Avoid binary contrast templates like 'not X but Y' and dramatic rhetorical framing.\n"
             "12) Avoid canned scaffolding phrases such as 'I am writing to express my interest', 'At the end of the day', and 'It is important to note that'.\n"
             "13) Keep technical mentions focused: avoid long tool lists; prioritize up to 4 role-relevant technologies.\n\n"
-            "14) If selected facts include differentiator tooling (for example RAG, AI API integration, MCP), include at least one in a concise factual sentence.\n\n"
+            "14) Vary sentence length on purpose: follow a long sentence with a short punchy one, and avoid making every sentence the same length.\n"
+            "15) Prefer a mix of short sentences (about 6-10 words) and medium sentences (about 14-22 words).\n\n"
+            "16) If selected facts include differentiator tooling (for example RAG, AI API integration, MCP), include at least one in a concise factual sentence.\n\n"
+            "17) Do not describe yourself as 'an AI'; use the plain student wording from the facts instead.\n\n"
+            "18) Mention the company name exactly at least once in a factual sentence (for example in the opening or closing paragraph).\n\n"
             "Recommended structure:\n"
             "- Greeting line must be exactly: Dear Hiring Team,\n"
             "- Exactly 4 paragraphs plus greeting line.\n"
             "- Keep one blank line between paragraphs.\n"
-            "- Paragraph 1: 2-3 direct sentences about fit grounded in facts.\n"
-            "- Paragraph 2: one concrete technical example with action and outcome from facts.\n"
-            "- Paragraph 3: one concrete collaboration/service/ownership example from a non-technical work fact.\n"
-            "- Paragraph 4: 1-2 concise closing lines without generic motivation filler.\n"
+            "- Paragraph 1: start with one short sentence, then add one longer sentence about fit grounded in facts.\n"
+            "- Paragraph 2: use one concrete technical example, followed by a short clarifying sentence about the outcome.\n"
+            "- Paragraph 3: use one concise collaboration/service example from a non-technical work fact, then one supporting sentence.\n"
+            "- Paragraph 4: end with 1-2 concise closing lines, and make at least one of them short.\n"
             "- Do not output the letter as a single block paragraph.\n\n"
             f"Role target:\n"
             f"- Company: {job_ad.company_name}\n"
@@ -281,17 +287,15 @@ def _ensure_differentiator_mention(text: str, selected_facts: list[FactsEntry]) 
         return text
 
     differentiators = _collect_differentiator_terms(selected_facts)
-    if len(differentiators) < 2:
+    if not differentiators:
         return text
 
     draft_lower = draft.lower()
     present = [term for term in differentiators if term.lower() in draft_lower]
-    if len(present) >= 2:
+    if present:
         return text
 
-    missing = [term for term in differentiators if term not in present]
-    needed = [*present, *missing][:2]
-    sentence = f"Relevant tooling in my experience includes {', '.join(needed)}."
+    sentence = f"Relevant tooling in my experience includes {differentiators[0]}."
 
     if draft.endswith("\n"):
         return f"{draft}{sentence}\n"
@@ -327,3 +331,49 @@ def _remove_low_value_license_line(text: str, job_ad: JobAd) -> str:
         )
     ]
     return "\n".join(filtered).strip()
+
+
+def _ensure_soft_skill_grounding(text: str, selected_facts: list[FactsEntry]) -> str:
+    """Ensure at least one explicit soft-skill sentence grounded in selected experience facts."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    soft_entries = [entry for entry in selected_facts if _is_soft_skill_entry(entry)]
+    if not soft_entries:
+        return text
+
+    draft_lower = draft.lower()
+    for entry in soft_entries:
+        company = _extract_company_from_title(entry.title)
+        if company and company.lower() in draft_lower:
+            return text
+
+    anchor = soft_entries[0]
+    company = _extract_company_from_title(anchor.title) or "a prior role"
+    summary = _soft_skill_summary(anchor.description)
+    sentence = f"In my role at {company}, I developed {summary}."
+    return f"{draft}\n\n{sentence}"
+
+
+def _extract_company_from_title(title: str) -> str | None:
+    """Extract employer name from titles shaped like 'Role at Company ...'."""
+
+    match = re.search(r"\bat\s+([^,]+)", title, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _soft_skill_summary(description: str) -> str:
+    """Build a compact soft-skill summary grounded in the fact description."""
+
+    lower = description.lower()
+    if "accuracy" in lower and "under pressure" in lower:
+        return "accuracy and independent execution under pressure"
+    if "customer" in lower or "service" in lower or "teamwork" in lower:
+        return "customer-facing communication and teamwork"
+    if "technical support" in lower or "maintenance" in lower:
+        return "clear communication and practical troubleshooting"
+    return "reliable collaboration and day-to-day ownership"

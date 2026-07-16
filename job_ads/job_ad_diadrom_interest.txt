@@ -11,6 +11,7 @@ Diadrom är ett ledande mjukvarubolag inom diagnostik av högteknologiska produk
 - Övervakar prestanda
 - Identifierar och analyserar fel
 - Förbättrar funktionalitet genom uppgradering av inbyggd mjukvara
+
 Vi hjälper våra kunder att utveckla systemlösningar - från on-board teknologier och standarder till off-board och centrala system, samt processutveckling och management. Dessutom erbjuder vi egna produkter inom området.
 
 Diadrom är listat på NASDAQ OMX First North Growth Market (ticker DIAH).
@@ -44,4 +45,3 @@ Eftersom detta är en intresseanmälan kan vi inte lova en omedelbar återkoppli
 Hos Diadrom får du chansen att arbeta med den senaste tekniken tillsammans med ett team som värdesätter innovation, samarbete och personlig utveckling. Vi tror att framtiden formas av nyfikna och drivna människor - kanske är det du?
 
 **Skicka in din intresseanmälan idag och bli en del av vår resa mot framtidens diagnostiklösningar!**
-

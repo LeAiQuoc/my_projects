@@ -11,6 +11,16 @@ _REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("in summary", "in short"),
     ("it is important to note", "keep in mind"),
     ("needless to say", "keep in mind"),
+    ("i am excited to leverage my skills in", "I use"),
+    ("excited to leverage", "ready to use"),
+    ("my technical foundation", "my background"),
+    ("aligns with", "fits"),
+    ("relevant tooling in my experience includes", "I've used"),
+    ("plays a crucial role", "matters"),
+    ("look forward to the opportunity to discuss further", "happy to discuss further"),
+    ("I am an AI and software development student", "I am a student in AI and software development"),
+    ("I am an AI", "I am a student in AI and software development"),
+    ("picking, packing, and forklift driving", "warehouse operations, including picking/packing work and forklift operation"),
     ("delve", "look into"),
     ("leverage", "use"),
     ("utilize", "use"),
@@ -44,7 +54,7 @@ def sanitize_draft(text: str) -> str:
     hits are rewritten.
     """
 
-    sanitized = text
+    sanitized = text.replace("—", "-").replace("–", "-")
     for source_word, replacement in _REPLACEMENTS:
         pattern = re.compile(rf"\b{re.escape(source_word)}\b", flags=re.IGNORECASE)
         sanitized = pattern.sub(lambda match: _preserve_case(match.group(0), replacement), sanitized)

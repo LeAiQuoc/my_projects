@@ -17,6 +17,25 @@ from src.job_ads.schema import JobAd
 from src.style.style_profile import StyleProfile
 
 
+_AI_TONE_PHRASE_PATTERNS: tuple[tuple[str, str], ...] = (
+    (r"\bi am excited to leverage my skills in\b", "i am excited to leverage my skills in"),
+    (r"\bexcited to leverage\b", "excited to leverage"),
+    (r"\baligns with\b", "aligns with"),
+    (r"\bplays a crucial role\b", "plays a crucial role"),
+    (r"\blook forward to the opportunity to discuss further\b", "look forward to the opportunity to discuss further"),
+    (r"\brelevant tooling in my experience includes\b", "relevant tooling in my experience includes"),
+    (r"\bmy technical foundation\b", "my technical foundation"),
+)
+
+_STRUCTURAL_CLOSING_PHRASES: tuple[tuple[str, str], ...] = (
+    (r"\bi am excited to leverage my skills in\b", "i am excited to leverage my skills in"),
+    (r"\bmy technical foundation .*? aligns with\b", "my technical foundation ... aligns with"),
+    (r"\brelevant tooling in my experience includes\b", "relevant tooling in my experience includes"),
+    (r"\bi look forward to the opportunity to discuss further\b", "i look forward to the opportunity to discuss further"),
+    (r"\blook forward to the opportunity to discuss further\b", "look forward to the opportunity to discuss further"),
+)
+
+
 class EvaluationResult(BaseModel):
     """Structured result returned by the evaluator."""
 
@@ -215,13 +234,21 @@ class Evaluator:
 
         lower = draft.lower()
         generic_phrases = (
-            "i am excited to",
-            "dynamic environment",
-            "team player",
-            "leverage my",
-            "passionate about",
+            r"\bi am excited to leverage\b",
+            r"\bdynamic environment\b",
+            r"\bteam player\b",
+            r"\bleverage my\b",
+            r"\bpassionate about\b",
+            r"\blook forward to the opportunity to discuss further\b",
+            r"\bplays a crucial role\b",
+            r"\brelevant tooling in my experience includes\b",
+            r"\baligns with\b",
         )
-        found_phrases = [phrase for phrase in generic_phrases if phrase in lower]
+        found_phrases = [
+            pattern.replace(r"\b", "")
+            for pattern in generic_phrases
+            if re.search(pattern, lower)
+        ]
 
         paragraph_lengths = [len(paragraph.split()) for paragraph in _paragraphs(draft)]
         uniform_rhythm = False
@@ -275,17 +302,14 @@ class Evaluator:
             return _CheckResult(passed=True, score=1.0, issues=[])
 
         lower = cover_letter.lower()
-        phrase_patterns = (
-            r"\baligns with\b",
-            r"\bmy technical foundation\b",
-            r"\brelevant tooling in my experience includes\b",
-            r"\bi am ready to contribute\b",
-            r"\bcompetence development opportunities\b",
-            r"\bproduction-facing tools\b",
+        phrase_patterns: tuple[tuple[str, str], ...] = _STRUCTURAL_CLOSING_PHRASES + (
+            (r"\bi am ready to contribute\b", "i am ready to contribute"),
+            (r"\bcompetence development opportunities\b", "competence development opportunities"),
+            (r"\bproduction-facing tools\b", "production-facing tools"),
         )
         found_phrases = [
-            pattern.replace(r"\b", "")
-            for pattern in phrase_patterns
+            label
+            for pattern, label in phrase_patterns
             if re.search(pattern, lower)
         ]
 

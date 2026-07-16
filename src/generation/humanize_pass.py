@@ -84,6 +84,7 @@ def _build_humanize_prompt(
     return (
         "Rewrite the draft below with these constraints:\n"
         "1) Vary sentence length noticeably (mix short, medium, and longer sentences).\n"
+        "1a) Alternate at least one short sentence after a longer one whenever the draft feels balanced.\n"
         "2) Remove generic or boilerplate cover-letter sounding lines.\n"
         "3) Preserve all factual claims from the original draft.\n"
         "4) Do not add any new facts or credentials.\n"
@@ -91,7 +92,7 @@ def _build_humanize_prompt(
         "6) Prefer concrete verbs and specific phrasing over abstract motivational language.\n"
         "7) Keep paragraph lengths uneven and natural; avoid repeated sentence templates.\n"
         "8) Keep role/company references factual and concise, avoiding filler transitions.\n"
-        "9) Keep most sentences short-to-medium length; target roughly 12-22 words per sentence.\n"
+        "9) Keep most sentences short-to-medium length; target roughly 12-22 words per sentence, but include some 6-10 word sentences too.\n"
         "10) If a sentence runs too long, split it into two clear sentences.\n\n"
         "11) Avoid formal scaffolding phrases such as 'I am writing to express my interest', 'In terms of', and 'Furthermore'.\n"
         "12) Prefer direct first-person statements with concrete actions over abstract claims.\n"
@@ -158,7 +159,7 @@ def _postprocess_humanized_text(text: str) -> str:
     # Normalize typographic dashes to plain ASCII punctuation.
     normalized = text.replace("—", "-").replace("–", "-")
     detemplated = _detemplate_phrases(normalized)
-    return _split_long_sentences(detemplated, max_words=26)
+    return _split_long_sentences(detemplated, max_words=22)
 
 
 def apply_deterministic_humanize_cleanup(text: str) -> str:
@@ -186,6 +187,7 @@ def _detemplate_phrases(text: str) -> str:
         ("Furthermore,", "Also,"),
         ("Additionally,", "Also,"),
         ("Moreover,", "Also,"),
+        ("picking, packing, and forklift driving", "warehouse operations, including picking/packing work and forklift operation"),
         ("Great question!", ""),
     )
 
