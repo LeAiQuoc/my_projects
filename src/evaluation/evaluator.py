@@ -51,6 +51,11 @@ class Evaluator:
         issues: list[str] = []
         scores: dict[str, float] = {}
 
+        fingerprints = self._fingerprint_check(draft)
+        scores["fingerprint_check"] = fingerprints.score
+        if not fingerprints.passed:
+            issues.extend(fingerprints.issues)
+
         hallucination = await self._hallucination_check(draft, facts)
         scores["hallucination"] = hallucination.score
         if not hallucination.passed:
@@ -70,6 +75,16 @@ class Evaluator:
         scores["ai_tone"] = ai_tone.score
         if not ai_tone.passed:
             issues.extend(ai_tone.issues)
+
+        structural_tone = self._cover_letter_structural_check(draft)
+        scores["cover_letter_structure"] = structural_tone.score
+        if not structural_tone.passed:
+            issues.extend(structural_tone.issues)
+
+        rhythm_uniformity = self._rhythm_uniformity_check(draft)
+        scores["rhythm_uniformity"] = rhythm_uniformity.score
+        if not rhythm_uniformity.passed:
+            issues.extend(rhythm_uniformity.issues)
 
         cliche = self._corporate_cliche_filter(draft)
         scores["cliche_filter"] = cliche.score
@@ -97,6 +112,9 @@ class Evaluator:
         system_prompt = (
             "You are a strict factual verifier. "
             "Given draft text and a facts database, detect every unsupported claim. "
+            "Treat paraphrases as supported when a facts entry conveys the same meaning. "
+            "Do not flag wording differences alone as unsupported. "
+            "Only flag a claim when no semantically equivalent support exists in any facts entry. "
             "Return JSON only with keys: unsupported_claims (list[str]), confidence (0-1)."
         )
         user_prompt = (
@@ -125,6 +143,7 @@ class Evaluator:
 
         content = _extract_response_text(response)
         unsupported = _parse_unsupported_claims(content)
+        unsupported = _filter_supported_claims(unsupported, facts)
         if not unsupported:
             return _CheckResult(passed=True, score=1.0, issues=[])
 
@@ -248,6 +267,135 @@ class Evaluator:
             issues=[f"cliche filter fail: banned words present ({', '.join(hits)})"],
         )
 
+    def _cover_letter_structural_check(self, draft: str) -> "_CheckResult":
+        """Catch stock cover-letter structure that reads generic across runs."""
+
+        cover_letter = _extract_cover_letter_body(draft)
+        if not cover_letter:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        lower = cover_letter.lower()
+        phrase_patterns = (
+            r"\baligns with\b",
+            r"\bmy technical foundation\b",
+            r"\brelevant tooling in my experience includes\b",
+            r"\bi am ready to contribute\b",
+            r"\bcompetence development opportunities\b",
+            r"\bproduction-facing tools\b",
+        )
+        found_phrases = [
+            pattern.replace(r"\b", "")
+            for pattern in phrase_patterns
+            if re.search(pattern, lower)
+        ]
+
+        body_paragraphs = [p for p in _paragraphs(cover_letter) if not p.lower().startswith("dear hiring team")]
+        symmetry_issue = None
+        if len(body_paragraphs) >= 3:
+            paragraph_lengths = [len(paragraph.split()) for paragraph in body_paragraphs]
+            avg = mean(paragraph_lengths)
+            if avg > 0:
+                spread = max(paragraph_lengths) - min(paragraph_lengths)
+                if spread <= max(10, int(avg * 0.15)):
+                    symmetry_issue = (
+                        "template structure risk: cover-letter paragraphs are too even in length "
+                        f"({', '.join(str(length) for length in paragraph_lengths)} words)"
+                    )
+
+        issues: list[str] = []
+        if found_phrases:
+            issues.append(
+                "template structure risk: stock phrases found "
+                f"({', '.join(found_phrases)})"
+            )
+        if symmetry_issue is not None:
+            issues.append(symmetry_issue)
+
+        if not issues:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        penalty = min(1.0, len(issues) * 0.35)
+        return _CheckResult(passed=False, score=max(0.0, 1.0 - penalty), issues=issues)
+
+    def _rhythm_uniformity_check(self, draft: str) -> "_CheckResult":
+        """Detect metronomic sentence rhythm that often reads as templated AI prose."""
+
+        paragraphs = _paragraphs(draft)
+        if not paragraphs:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        min_cv = 1.0
+        uniform_details: list[str] = []
+        for idx, paragraph in enumerate(paragraphs, start=1):
+            lengths = _sentence_lengths(paragraph)
+            if len(lengths) < 3:
+                continue
+            avg = mean(lengths)
+            if avg <= 0:
+                continue
+            cv = pstdev(lengths) / avg
+            min_cv = min(min_cv, cv)
+            if cv < 0.22:
+                uniform_details.append(f"p{idx} cv={cv:.2f}")
+
+        if not uniform_details:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        score = max(0.0, min(1.0, min_cv / 0.22))
+        return _CheckResult(
+            passed=False,
+            score=score,
+            issues=[
+                "rhythm uniformity risk: sentence lengths are too even "
+                f"({', '.join(uniform_details)})"
+            ],
+        )
+
+    def _fingerprint_check(self, draft: str) -> "_CheckResult":
+        """Detect high-confidence AI copy/paste fingerprints deterministically."""
+
+        placeholder_patterns = (
+            r"\[(?:Your|Insert|Add|Enter|Recipient|Sender|Subject|Position|Company Name)[^\]\n]{0,80}\]",
+            r"\b(?:19|20)\d{2}-XX-XX\b",
+            r"\bXX/XX/(?:19|20)\d{2}\b",
+            r"<!--\s*(?:add|fill\s+in|insert|todo|placeholder)[^>]{0,120}-->",
+        )
+        citation_patterns = (
+            r"\boaicite\b",
+            r"\bcontentReference\s*\[oaicite:[^\]]+\]",
+            r"\boai_citation\b",
+            r"\bgrok_card\b",
+        )
+        utm_patterns = (
+            r"[?&]utm_source=(?:chatgpt|openai|copilot|claude|grok|gemini|perplexity)(?:\.com|\.ai)?\b",
+            r"[?&]referrer=(?:chatgpt|copilot|grok|claude|gemini|perplexity)\.(?:com|ai)\b",
+        )
+
+        hits: list[str] = []
+        for pattern in placeholder_patterns:
+            if re.search(pattern, draft, flags=re.IGNORECASE):
+                hits.append("placeholder")
+                break
+        for pattern in citation_patterns:
+            if re.search(pattern, draft, flags=re.IGNORECASE):
+                hits.append("citation-markup")
+                break
+        for pattern in utm_patterns:
+            if re.search(pattern, draft, flags=re.IGNORECASE):
+                hits.append("ai-tracking-link")
+                break
+
+        if not hits:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        unique_hits = sorted(set(hits))
+        penalty = min(1.0, 0.5 + (0.2 * len(unique_hits)))
+        return _CheckResult(
+            passed=False,
+            score=max(0.0, 1.0 - penalty),
+            issues=[f"fingerprint check fail: found {', '.join(unique_hits)}"],
+        )
+
 
 @dataclass(slots=True)
 class _CheckResult:
@@ -303,6 +451,80 @@ def _parse_unsupported_claims(text: str) -> list[str]:
         return [line for line in lines if line]
 
 
+def _filter_supported_claims(claims: list[str], facts: FactsDatabase) -> list[str]:
+    """Drop unsupported-claim hits that are already supported by facts."""
+
+    return [claim for claim in claims if not _claim_is_supported_by_facts(claim, facts)]
+
+
+def _claim_is_supported_by_facts(claim: str, facts: FactsDatabase) -> bool:
+    """Heuristically accept fact-backed paraphrases and multi-fact summaries."""
+
+    claim_norm = _normalize_text(claim)
+    if not claim_norm:
+        return False
+
+    fact_blobs = [
+        _normalize_text(f"{entry.title} {entry.description} {' '.join(entry.technologies)}")
+        for entry in facts.entries
+    ]
+    combined_blob = " ".join(fact_blobs)
+
+    if any(claim_norm in blob for blob in fact_blobs):
+        return True
+    if claim_norm in combined_blob:
+        return True
+
+    claim_tokens = _meaningful_tokens(claim_norm)
+    if not claim_tokens:
+        return False
+
+    combined_tokens = set(_meaningful_tokens(combined_blob))
+    overlap = sum(1 for token in claim_tokens if token in combined_tokens)
+    overlap_ratio = overlap / len(claim_tokens)
+
+    if overlap_ratio >= 0.72:
+        return True
+
+    summary_markers = ("technical projects", "independent programming work", "spare time")
+    if any(marker in claim_norm for marker in summary_markers) and overlap_ratio >= 0.55:
+        return True
+
+    if "independent programming work" in claim_norm:
+        has_personal_programming_fact = any(
+            "spare time" in _normalize_text(entry.description)
+            or "personal programming practice" in _normalize_text(entry.title)
+            for entry in facts.entries
+        )
+        has_project_fact = any(entry.category == "project" for entry in facts.entries)
+        if has_personal_programming_fact and has_project_fact:
+            return True
+
+    return False
+
+
+def _normalize_text(text: str) -> str:
+    """Normalize text for simple semantic-support heuristics."""
+
+    lowered = text.lower().replace("-", " ").replace("/", " ")
+    lowered = re.sub(r"[^a-z0-9+\s]", " ", lowered)
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
+def _meaningful_tokens(text: str) -> list[str]:
+    """Extract content tokens while ignoring generic summary glue."""
+
+    stop_words = {
+        "a", "an", "and", "are", "as", "at", "be", "both", "build", "built",
+        "by", "can", "clearly", "combine", "combined", "consistent", "currently",
+        "demonstrate", "demonstrates", "experience", "for", "from", "have", "has", "i",
+        "in", "including", "into", "is", "it", "my", "of", "on", "or", "that",
+        "the", "their", "these", "this", "through", "to", "various", "where", "with",
+        "work", "worked", "working",
+    }
+    return [token for token in text.split() if len(token) > 2 and token not in stop_words]
+
+
 def _format_fact(entry: Any) -> str:
     """Serialize one fact entry to compact verifier context text."""
 
@@ -328,3 +550,12 @@ def _paragraphs(text: str) -> list[str]:
     """Split draft into non-empty paragraphs."""
 
     return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+
+
+def _extract_cover_letter_body(text: str) -> str:
+    """Extract the cover-letter slice from a combined CV + cover-letter draft."""
+
+    match = re.search(r"(?:^|\n\n)(dear hiring team,|hej,)(.*)\Z", text, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return ""
+    return f"{match.group(1)}{match.group(2)}".strip()

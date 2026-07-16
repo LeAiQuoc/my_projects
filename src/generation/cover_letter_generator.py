@@ -14,6 +14,25 @@ from src.job_ads.schema import JobAd
 from src.style.style_profile import StyleProfile
 
 
+_SOFT_SKILL_HINTS: tuple[str, ...] = (
+    "customer service",
+    "teamwork",
+    "technical support",
+    "independently",
+    "under pressure",
+    "accuracy",
+    "service",
+)
+
+_TECH_DIFFERENTIATOR_HINTS: tuple[str, ...] = (
+    "RAG",
+    "AI API integration",
+    "MCP",
+    "Prompt Engineering",
+    "embeddings",
+)
+
+
 class CoverLetterGenerator:
     """Generate a cover letter grounded strictly in verified facts."""
 
@@ -38,13 +57,15 @@ class CoverLetterGenerator:
         """
 
         selected_facts = CVGenerator().select_relevant_facts(facts, job_ad, limit=6)
+        selected_facts = _ensure_soft_skill_coverage(selected_facts, facts)
         if not selected_facts:
             raise ValueError("cannot generate cover letter without at least one facts entry")
 
         system_prompt = (
             "You are an expert cover-letter writer. "
             "Use only the provided facts. "
-            "Do not invent achievements, metrics, companies, or experience details."
+            "Do not invent achievements, metrics, companies, or experience details. "
+            "You may summarize patterns across multiple facts when the meaning stays faithful to those facts."
         )
         user_prompt = self._build_prompt(
             selected_facts=selected_facts,
@@ -54,8 +75,8 @@ class CoverLetterGenerator:
         )
 
         client = self.client or _create_default_client()
-        temperature = _env_float("DEEPSEEK_COVER_TEMPERATURE", 0.62)
-        frequency_penalty = _env_float("DEEPSEEK_COVER_FREQUENCY_PENALTY", 0.35)
+        temperature = _env_float("DEEPSEEK_COVER_TEMPERATURE", 0.82)
+        frequency_penalty = _env_float("DEEPSEEK_COVER_FREQUENCY_PENALTY", 0.15)
         presence_penalty = _env_float("DEEPSEEK_COVER_PRESENCE_PENALTY", 0.15)
 
         try:
@@ -75,7 +96,8 @@ class CoverLetterGenerator:
         content = _extract_response_text(response)
         if not content:
             raise RuntimeError("cover letter generation returned empty content")
-        return content
+        content = _ensure_differentiator_mention(content, selected_facts)
+        return _remove_low_value_license_line(content, job_ad)
 
     def _build_prompt(
         self,
@@ -95,6 +117,10 @@ class CoverLetterGenerator:
             else ""
         )
         facts_block = "\n".join(_format_fact(entry) for entry in selected_facts)
+        soft_skill_fact_ids = [entry.id for entry in selected_facts if _is_soft_skill_entry(entry)]
+        soft_skill_ids_text = ", ".join(soft_skill_fact_ids) if soft_skill_fact_ids else "N/A"
+        differentiator_terms = _collect_differentiator_terms(selected_facts)
+        differentiator_text = ", ".join(differentiator_terms) if differentiator_terms else "N/A"
 
         return (
             "Task: Write a tailored cover letter in Markdown for the target role.\n\n"
@@ -105,7 +131,23 @@ class CoverLetterGenerator:
             "4) Keep it concise, specific, and role-matched.\n"
             "5) Do NOT include disclaimers, meta commentary, or notes about missing requirements.\n"
             "6) Avoid opinion/intent language (for example: I believe, I look forward, eager to) unless explicit in facts.\n"
-            "7) Output only the cover letter content in Markdown, with no preface text.\n\n"
+            "7) Do NOT convert company requirements into personal skill/readiness claims unless explicit in selected facts.\n"
+            "8) Output only the cover letter content in Markdown, with no preface text.\n"
+            "9) Prefer action-first factual sentences (who did what) over abstract claims.\n"
+            "10) Include at least one short soft-skill paragraph grounded in selected facts (communication, service, teamwork, or independent work under pressure).\n"
+            "11) Avoid binary contrast templates like 'not X but Y' and dramatic rhetorical framing.\n"
+            "12) Avoid canned scaffolding phrases such as 'I am writing to express my interest', 'At the end of the day', and 'It is important to note that'.\n"
+            "13) Keep technical mentions focused: avoid long tool lists; prioritize up to 4 role-relevant technologies.\n\n"
+            "14) If selected facts include differentiator tooling (for example RAG, AI API integration, MCP), include at least one in a concise factual sentence.\n\n"
+            "Recommended structure:\n"
+            "- Greeting line must be exactly: Dear Hiring Team,\n"
+            "- Exactly 4 paragraphs plus greeting line.\n"
+            "- Keep one blank line between paragraphs.\n"
+            "- Paragraph 1: 2-3 direct sentences about fit grounded in facts.\n"
+            "- Paragraph 2: one concrete technical example with action and outcome from facts.\n"
+            "- Paragraph 3: one concrete collaboration/service/ownership example from a non-technical work fact.\n"
+            "- Paragraph 4: 1-2 concise closing lines without generic motivation filler.\n"
+            "- Do not output the letter as a single block paragraph.\n\n"
             f"Role target:\n"
             f"- Company: {job_ad.company_name}\n"
             f"- Role: {job_ad.role_title}\n"
@@ -121,6 +163,10 @@ class CoverLetterGenerator:
             f"- Phrases to avoid: {', '.join(style_profile.phrases_to_avoid) or 'N/A'}\n"
             f"- Structural notes: {style_profile.structural_notes}\n"
             f"- Anchor snippets:\n{anchor_snippets}\n\n"
+            f"Soft-skill facts to use explicitly (cite by content, not id): {soft_skill_ids_text}\n"
+            "You MUST include at least one sentence that names one employer from those soft-skill facts.\n\n"
+            f"Technical differentiators available in selected facts: {differentiator_text}\n"
+            "If this list is not N/A, mention at least one item explicitly.\n\n"
             f"Selected facts entries:\n{facts_block}\n"
             f"{correction_section}"
         )
@@ -178,3 +224,106 @@ def _env_float(name: str, default: float) -> float:
         return float(raw)
     except ValueError:
         return default
+
+
+def _ensure_soft_skill_coverage(
+    selected_facts: list[FactsEntry],
+    facts: FactsDatabase,
+) -> list[FactsEntry]:
+    """Ensure cover-letter context includes at least one soft-skill evidence entry."""
+
+    if not selected_facts:
+        return selected_facts
+
+    selected_ids = {entry.id for entry in selected_facts}
+    if any(_is_soft_skill_entry(entry) for entry in selected_facts):
+        return selected_facts
+
+    for candidate in facts.entries:
+        if candidate.id in selected_ids:
+            continue
+        if _is_soft_skill_entry(candidate):
+            return [*selected_facts, candidate]
+
+    return selected_facts
+
+
+def _is_soft_skill_entry(entry: FactsEntry) -> bool:
+    """Detect facts likely to support grounded people-skill statements."""
+
+    if entry.category != "experience":
+        return False
+
+    haystack = f"{entry.title} {entry.description} {' '.join(entry.technologies)}".lower()
+    return any(token in haystack for token in _SOFT_SKILL_HINTS)
+
+
+def _collect_differentiator_terms(selected_facts: list[FactsEntry]) -> list[str]:
+    """Collect concise advanced-tooling terms available in selected facts."""
+
+    found: list[str] = []
+    seen: set[str] = set()
+    for entry in selected_facts:
+        blob = f"{entry.title} {entry.description} {' '.join(entry.technologies)}".lower()
+        for term in _TECH_DIFFERENTIATOR_HINTS:
+            normalized = term.lower()
+            if normalized in blob and normalized not in seen:
+                found.append(term)
+                seen.add(normalized)
+    return found[:3]
+
+
+def _ensure_differentiator_mention(text: str, selected_facts: list[FactsEntry]) -> str:
+    """Inject one concise factual sentence when key differentiators are omitted."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    differentiators = _collect_differentiator_terms(selected_facts)
+    if len(differentiators) < 2:
+        return text
+
+    draft_lower = draft.lower()
+    present = [term for term in differentiators if term.lower() in draft_lower]
+    if len(present) >= 2:
+        return text
+
+    missing = [term for term in differentiators if term not in present]
+    needed = [*present, *missing][:2]
+    sentence = f"Relevant tooling in my experience includes {', '.join(needed)}."
+
+    if draft.endswith("\n"):
+        return f"{draft}{sentence}\n"
+    return f"{draft}\n\n{sentence}"
+
+
+def _remove_low_value_license_line(text: str, job_ad: JobAd) -> str:
+    """Drop driver's-license statements unless the role explicitly requires it."""
+
+    role_context = " ".join(
+        [
+            job_ad.role_title,
+            job_ad.source_text or "",
+            " ".join(job_ad.required_skills),
+            " ".join(job_ad.nice_to_have_skills),
+        ]
+    ).lower()
+
+    requires_license = any(
+        marker in role_context
+        for marker in ("driver", "driving license", "korkort", "körkort", "class b")
+    )
+    if requires_license:
+        return text
+
+    lines = text.splitlines()
+    filtered = [
+        line
+        for line in lines
+        if not any(
+            marker in line.lower()
+            for marker in ("driver's license", "driving license", "class b", "korkort", "körkort")
+        )
+    ]
+    return "\n".join(filtered).strip()

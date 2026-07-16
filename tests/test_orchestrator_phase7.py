@@ -114,6 +114,21 @@ async def test_orchestrator_runs_humanize_when_ai_tone_issue(monkeypatch: pytest
     assert calls["count"] == 2
 
 
+def test_orchestrator_builds_actionable_template_structure_correction_note() -> None:
+    orchestrator = GenerationOrchestrator(
+        cv_generator=_StaticGenerator("cv draft"),
+        cover_letter_generator=_StaticGenerator("cover draft"),
+        evaluator=_EvaluatorSequence([]),
+    )
+
+    note = orchestrator._build_correction_note(
+        ["template structure risk: stock phrases found (aligns with, my technical foundation)"]
+    )
+
+    assert note is not None
+    assert "Avoid stock fit phrases" in note
+
+
 @pytest.mark.asyncio
 async def test_orchestrator_skips_humanize_without_ai_tone_issue(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"count": 0}
@@ -192,3 +207,188 @@ async def test_orchestrator_runs_humanize_when_style_mismatch_issue(monkeypatch:
 
     assert result.evaluation.passed is True
     assert calls["count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_blocks_humanize_when_protected_span_drops(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_rewrite(draft: str, style_profile: StyleProfile, *args, **kwargs) -> str:
+        _ = style_profile, args, kwargs
+        return "humanized text without protected keyword"
+
+    monkeypatch.setattr("src.loop.orchestrator.rewrite_for_natural_rhythm", _fake_rewrite)
+
+    evaluator = _EvaluatorSequence(
+        [
+            EvaluationResult(
+                passed=False,
+                issues=["ai-tone check failed: sentence rhythm is too uniform"],
+                per_check_scores={"ai_tone": 0.4},
+            ),
+            EvaluationResult(
+                passed=True,
+                issues=[],
+                per_check_scores={"ai_tone": 0.9},
+            ),
+        ]
+    )
+
+    orchestrator = GenerationOrchestrator(
+        cv_generator=_StaticGenerator("cv draft with python"),
+        cover_letter_generator=_StaticGenerator("cover draft with python"),
+        evaluator=evaluator,
+        max_retries=1,
+        enable_humanize_pass=True,
+    )
+
+    result = await orchestrator.run(_facts(), _job(), _style())
+
+    assert result.evaluation.passed is True
+    assert result.cv_draft == "cv draft with python"
+    assert result.cover_letter_draft == "cover draft with python"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_routes_voice_mode_by_document_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    voice_modes: list[str] = []
+
+    async def _fake_rewrite(draft: str, style_profile: StyleProfile, *args, **kwargs) -> str:
+        _ = style_profile, args
+        voice_modes.append(str(kwargs.get("voice_mode")))
+        return f"humanized {draft} with python"
+
+    monkeypatch.setattr("src.loop.orchestrator.rewrite_for_natural_rhythm", _fake_rewrite)
+
+    evaluator = _EvaluatorSequence(
+        [
+            EvaluationResult(
+                passed=False,
+                issues=["style mismatch: sentence-length profile differs from style profile"],
+                per_check_scores={"style_match": 0.3},
+            ),
+            EvaluationResult(
+                passed=True,
+                issues=[],
+                per_check_scores={"style_match": 0.9},
+            ),
+        ]
+    )
+
+    orchestrator = GenerationOrchestrator(
+        cv_generator=_StaticGenerator("cv draft with python"),
+        cover_letter_generator=_StaticGenerator("cover draft with python"),
+        evaluator=evaluator,
+        max_retries=1,
+        enable_humanize_pass=True,
+    )
+
+    result = await orchestrator.run(_facts(), _job(), _style())
+
+    assert result.evaluation.passed is True
+    assert voice_modes == ["technical", "professional"]
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_allows_rewrite_when_only_role_label_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_rewrite(draft: str, style_profile: StyleProfile, *args, **kwargs) -> str:
+        _ = style_profile, args, kwargs
+        return draft.replace("Software Engineer", "Developer")
+
+    monkeypatch.setattr("src.loop.orchestrator.rewrite_for_natural_rhythm", _fake_rewrite)
+
+    evaluator = _EvaluatorSequence(
+        [
+            EvaluationResult(
+                passed=False,
+                issues=["style mismatch: sentence-length profile differs from style profile"],
+                per_check_scores={"style_match": 0.3},
+            ),
+            EvaluationResult(
+                passed=True,
+                issues=[],
+                per_check_scores={"style_match": 0.9},
+            ),
+        ]
+    )
+
+    orchestrator = GenerationOrchestrator(
+        cv_generator=_StaticGenerator("cv draft with Software Engineer and python"),
+        cover_letter_generator=_StaticGenerator("cover draft with Software Engineer and python"),
+        evaluator=evaluator,
+        max_retries=1,
+        enable_humanize_pass=True,
+    )
+
+    result = await orchestrator.run(_facts(), _job(), _style())
+
+    assert result.evaluation.passed is True
+    assert "Developer" in result.cv_draft
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_voice_mode_can_be_overridden_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    voice_modes: list[str] = []
+
+    async def _fake_rewrite(draft: str, style_profile: StyleProfile, *args, **kwargs) -> str:
+        _ = style_profile, args
+        voice_modes.append(str(kwargs.get("voice_mode")))
+        return f"humanized {draft} with python"
+
+    monkeypatch.setattr("src.loop.orchestrator.rewrite_for_natural_rhythm", _fake_rewrite)
+    monkeypatch.setenv("HUMANIZE_VOICE_MODE_CV", "blunt")
+    monkeypatch.setenv("HUMANIZE_VOICE_MODE_COVER", "warm")
+
+    evaluator = _EvaluatorSequence(
+        [
+            EvaluationResult(
+                passed=False,
+                issues=["style mismatch: sentence-length profile differs from style profile"],
+                per_check_scores={"style_match": 0.3},
+            ),
+            EvaluationResult(
+                passed=True,
+                issues=[],
+                per_check_scores={"style_match": 0.9},
+            ),
+        ]
+    )
+
+    orchestrator = GenerationOrchestrator(
+        cv_generator=_StaticGenerator("cv draft with python"),
+        cover_letter_generator=_StaticGenerator("cover draft with python"),
+        evaluator=evaluator,
+        max_retries=1,
+        enable_humanize_pass=True,
+    )
+
+    result = await orchestrator.run(_facts(), _job(), _style())
+
+    assert result.evaluation.passed is True
+    assert voice_modes == ["blunt", "warm"]
+
+
+def test_orchestrator_correction_note_sanitizes_requirement_coverage_issue() -> None:
+    orchestrator = GenerationOrchestrator(
+        cv_generator=_StaticGenerator("cv"),
+        cover_letter_generator=_StaticGenerator("cover"),
+        evaluator=_EvaluatorSequence(
+            [
+                EvaluationResult(
+                    passed=True,
+                    issues=[],
+                    per_check_scores={},
+                )
+            ]
+        ),
+    )
+
+    note = orchestrator._build_correction_note(
+        [
+            "requirement coverage too low; missing: matlab/simulink, autosar, vectors, c/c++",
+            "unsupported claim: I know Python and C/C++ already.",
+        ]
+    )
+
+    assert note is not None
+    assert "Do not fabricate missing required skills" in note
+    assert "Remove unsupported claims" in note
+    assert "c/c++" not in note.lower()

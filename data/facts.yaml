@@ -114,10 +114,19 @@ entries:
   - GPT
   - Ollama
   - MCP
+  - Harness and loop engineering
 - id: skill-driving-license
   category: skill
   title: Driving License
   description: Hold a manual class B driver's license.
   technologies:
   - Driver's License B (Manual)
+- id: skill-personal-programming-practice
+  category: skill
+  title: Personal Programming Practice
+  description: I also spend time programming in my spare time, building various
+    programs.
+  technologies:
+  - Python
+  - Personal Projects
 source_path: data\facts.yaml

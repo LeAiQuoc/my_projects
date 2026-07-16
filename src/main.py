@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Iterable
@@ -15,6 +16,7 @@ from dotenv import load_dotenv
 
 from src.config import DEFAULT_FACTS_FILE, DEFAULT_STYLE_PROFILE_FILE, get_env_path
 from src.evaluation.evaluator import Evaluator
+from src.evaluation.humanize_detector import HumanizeDetectorResult, run_humanize_detector
 from src.facts.facts_loader import bootstrap_facts_database, load_facts_database
 from src.facts.facts_schema import FactsDatabase
 from src.generation.cover_letter_generator import CoverLetterGenerator
@@ -94,11 +96,50 @@ def _render_generation_markdown(
     source_label: str,
     job_ad: JobAd,
     result: OrchestrationResult,
+    detector_result: HumanizeDetectorResult | None = None,
+    rendered_cover_letter: str | None = None,
+    detector_executed_at: str | None = None,
 ) -> str:
     """Render a single generation result as markdown."""
 
     issues = result.unresolved_issues or result.evaluation.issues
     issues_block = "\n".join(f"- {issue}" for issue in issues) if issues else "- None"
+
+    detector_block = ""
+    if detector_result is not None:
+        top_issues = detector_result.issues[:5]
+        top_issues_block = (
+            "\n".join(
+                f"- {issue.issue_type} ({issue.severity}): {issue.text}; suggestion: {issue.suggestion}"
+                for issue in top_issues
+            )
+            if top_issues
+            else "- None"
+        )
+        voice_drift = (
+            f"{detector_result.voice_drift:.2f}"
+            if detector_result.voice_drift is not None
+            else "N/A"
+        )
+        detector_block = (
+            "## Humanize Detector\n\n"
+            f"- Executed at: {detector_executed_at or 'N/A'}\n"
+            f"- Score: {detector_result.score:.1f}\n"
+            f"- Label: {detector_result.label}\n"
+            f"- Document classification: {detector_result.document_classification}\n"
+            f"- Voice drift: {voice_drift}\n\n"
+            "- Top issues:\n"
+            f"{top_issues_block}\n\n"
+        )
+    else:
+        detector_block = (
+            "## Humanize Detector\n\n"
+            f"- Executed at: {detector_executed_at or 'N/A'}\n"
+            "- Status: unavailable (detector runtime not found or execution failed)\n\n"
+        )
+
+    cover_letter_text = rendered_cover_letter or _finalize_cover_letter_for_rendering(result.cover_letter_draft, job_ad)
+
     return (
         f"# Generated Application Pack\n\n"
         f"- Source: {source_label}\n"
@@ -107,10 +148,30 @@ def _render_generation_markdown(
         f"- Attempts: {result.attempts}\n"
         f"- Passed: {result.evaluation.passed}\n\n"
         f"## CV\n\n{result.cv_draft}\n\n"
-        f"## Cover Letter\n\n{result.cover_letter_draft}\n\n"
+        f"## Cover Letter\n\n{cover_letter_text}\n\n"
+        f"{detector_block}"
         f"## Evaluation Summary\n\n"
         f"- Issues:\n{issues_block}\n"
     )
+
+
+def _finalize_cover_letter_for_rendering(cover_letter: str, job_ad: JobAd) -> str:
+    """Apply final output guardrails for software-role cover letters."""
+
+    role_context = f"{job_ad.role_title} {job_ad.company_name}".lower()
+    software_like = any(token in role_context for token in ("software", "mjukvaru", "embedded", "developer"))
+    if not software_like:
+        return cover_letter
+
+    filtered = [
+        line
+        for line in cover_letter.splitlines()
+        if not any(
+            marker in line.lower()
+            for marker in ("driver's license", "driving license", "class b", "korkort", "körkort")
+        )
+    ]
+    return "\n".join(filtered).strip()
 
 
 def _render_batch_markdown(results: list[RankedBatchResult]) -> str:
@@ -132,6 +193,44 @@ def _render_batch_markdown(results: list[RankedBatchResult]) -> str:
     for index, item in enumerate(results, start=1):
         issues = item.result.unresolved_issues or item.result.evaluation.issues
         issues_block = "\n".join(f"- {issue}" for issue in issues) if issues else "- None"
+        detector_result = run_humanize_detector(
+            item.result.cover_letter_draft,
+            scene_mode="public-writing",
+            voice_mode="professional",
+        )
+        detector_lines: list[str] = []
+        if detector_result is not None:
+            detector_lines.extend(
+                [
+                    "### Humanize Detector",
+                    "",
+                    f"- Score: {detector_result.score:.1f}",
+                    f"- Label: {detector_result.label}",
+                    f"- Document classification: {detector_result.document_classification}",
+                    (
+                        f"- Voice drift: {detector_result.voice_drift:.2f}"
+                        if detector_result.voice_drift is not None
+                        else "- Voice drift: N/A"
+                    ),
+                    "",
+                    "- Top issues:",
+                ]
+            )
+            top_issues = detector_result.issues[:5]
+            if top_issues:
+                detector_lines.extend(
+                    [
+                        (
+                            f"- {issue.issue_type} ({issue.severity}): {issue.text}; "
+                            f"suggestion: {issue.suggestion}"
+                        )
+                        for issue in top_issues
+                    ]
+                )
+            else:
+                detector_lines.append("- None")
+            detector_lines.append("")
+
         lines.extend(
             [
                 f"## {index}. {item.job_ad.company_name} - {item.job_ad.role_title}",
@@ -147,6 +246,7 @@ def _render_batch_markdown(results: list[RankedBatchResult]) -> str:
                 "",
                 item.result.cover_letter_draft,
                 "",
+                *detector_lines,
                 "### Issues",
                 "",
                 issues_block,
@@ -321,7 +421,21 @@ def generate(job_ad_source: str, facts_file: Path, style_file: Path, output: Pat
     except (click.ClickException, FileNotFoundError, ValueError, RuntimeError) as exc:
         raise click.ClickException(str(exc)) from exc
 
-    markdown = _render_generation_markdown(job_ad_source, job_ad, result)
+    rendered_cover_letter = _finalize_cover_letter_for_rendering(result.cover_letter_draft, job_ad)
+    detector_executed_at = datetime.now().isoformat(timespec="seconds")
+    detector_feedback = run_humanize_detector(
+        rendered_cover_letter,
+        scene_mode="public-writing",
+        voice_mode="professional",
+    )
+    markdown = _render_generation_markdown(
+        job_ad_source,
+        job_ad,
+        result,
+        detector_result=detector_feedback,
+        rendered_cover_letter=rendered_cover_letter,
+        detector_executed_at=detector_executed_at,
+    )
     _echo_or_write(markdown, output)
 
 

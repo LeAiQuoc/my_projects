@@ -56,6 +56,13 @@ def _sample_facts() -> FactsDatabase:
                 description="Created automation scripts and observability checks.",
                 technologies=["Python", "Docker"],
             ),
+            FactsEntry(
+                id="exp-2",
+                category="experience",
+                title="Operations Support",
+                description="Worked in customer service and coordinated with teammates under pressure.",
+                technologies=["Customer Service", "Teamwork"],
+            ),
         ]
     )
 
@@ -129,3 +136,45 @@ async def test_cover_letter_generator_builds_grounded_prompt_and_returns_text() 
     assert isinstance(user_prompt, str)
     assert "Use ONLY the selected facts entries" in user_prompt
     assert "Do NOT invent skills" in user_prompt
+    assert "Include at least one short soft-skill paragraph grounded in selected facts" in user_prompt
+    assert "Avoid binary contrast templates" in user_prompt
+    assert "Exactly 4 paragraphs plus greeting line" in user_prompt
+    assert "Greeting line must be exactly: Dear Hiring Team," in user_prompt
+    assert "non-technical work fact" in user_prompt
+    assert "Soft-skill facts to use explicitly" in user_prompt
+    assert "Technical differentiators available in selected facts" in user_prompt
+    assert "id=exp-2" in user_prompt
+
+
+@pytest.mark.asyncio
+async def test_cover_letter_generator_injects_missing_differentiators() -> None:
+    facts = FactsDatabase(
+        entries=[
+            FactsEntry(
+                id="exp-diff-1",
+                category="experience",
+                title="AI Engineer",
+                description="Worked on practical LLM workflows.",
+                technologies=["Python", "RAG", "AI API integration", "MCP"],
+            ),
+            FactsEntry(
+                id="exp-diff-2",
+                category="experience",
+                title="Ops Support",
+                description="Handled customer service under pressure.",
+                technologies=["Customer Service", "Teamwork"],
+            ),
+        ]
+    )
+
+    fake_client = _FakeClient("Dear Hiring Team,\n\nI build practical tools in Python.")
+    generator = CoverLetterGenerator(client=fake_client)
+
+    output = await generator.generate(
+        facts=facts,
+        job_ad=_sample_job_ad(),
+        style_profile=_sample_style(),
+    )
+
+    assert "Relevant tooling in my experience includes" in output
+    assert "RAG" in output or "AI API integration" in output or "MCP" in output

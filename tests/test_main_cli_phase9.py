@@ -81,6 +81,7 @@ def test_generate_command_outputs_markdown(tmp_path: Path, monkeypatch) -> None:
         return _job_ad(), _orchestration_result()
 
     monkeypatch.setattr("src.main._run_generate", _fake_run_generate)
+    monkeypatch.setattr("src.main.run_humanize_detector", lambda *_args, **_kwargs: None)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -99,6 +100,52 @@ def test_generate_command_outputs_markdown(tmp_path: Path, monkeypatch) -> None:
     assert "# Generated Application Pack" in result.output
     assert "## CV" in result.output
     assert "## Cover Letter" in result.output
+
+
+def test_generate_command_renders_detector_block(tmp_path: Path, monkeypatch) -> None:
+    job_ad_file = tmp_path / "job-ad.txt"
+    job_ad_file.write_text("Company: Acme\nRole: Engineer", encoding="utf-8")
+
+    async def _fake_run_generate(job_ad_source: str, facts_file: Path, style_file: Path, logger):
+        _ = facts_file, style_file, logger
+        assert job_ad_source == str(job_ad_file)
+        return _job_ad(), _orchestration_result()
+
+    monkeypatch.setattr("src.main._run_generate", _fake_run_generate)
+
+    class _Issue:
+        issue_type = "template-phrase"
+        severity = "high"
+        text = "At the end of the day"
+        suggestion = "Delete phrase"
+
+    class _DetectorResult:
+        score = 42.0
+        label = "Some"
+        document_classification = "MIXED"
+        voice_drift = 18.5
+        issues = [_Issue()]
+
+    monkeypatch.setattr("src.main.run_humanize_detector", lambda *_args, **_kwargs: _DetectorResult())
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "generate",
+            str(job_ad_file),
+            "--facts-file",
+            str(tmp_path / "facts.yaml"),
+            "--style-file",
+            str(tmp_path / "style.json"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "## Humanize Detector" in result.output
+    assert "- Executed at:" in result.output
+    assert "- Score: 42.0" in result.output
+    assert "- Label: Some" in result.output
 
 
 def test_init_facts_command_reports_existing_file_cleanly(tmp_path: Path) -> None:
