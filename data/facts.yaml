@@ -41,8 +41,8 @@ entries:
 - id: education-teknikhogskolan-ai-software-development
   category: education
   title: Teknikhogskolan Higher Vocational Education Diploma in AI and Software Development
-  description: Studying AI and software development with practical focus on Python,
-    backend development, and applied AI workflows.
+  description: Studied AI and software development with practical focus on Python,
+    backend development, and applied AI workflows.(Graduated)
   technologies:
   - Python
   - AI

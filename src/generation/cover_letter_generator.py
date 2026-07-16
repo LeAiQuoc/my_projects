@@ -33,6 +33,20 @@ _TECH_DIFFERENTIATOR_HINTS: tuple[str, ...] = (
     "embeddings",
 )
 
+_SOFT_SKILL_LANGUAGE_HINTS: tuple[str, ...] = (
+    "under pressure",
+    "independent",
+    "independently",
+    "accuracy",
+    "team",
+    "teamwork",
+    "collaboration",
+    "stakeholder",
+    "customer",
+    "service",
+    "communication",
+)
+
 
 class CoverLetterGenerator:
     """Generate a cover letter grounded strictly in verified facts."""
@@ -123,6 +137,8 @@ class CoverLetterGenerator:
         soft_skill_ids_text = ", ".join(soft_skill_fact_ids) if soft_skill_fact_ids else "N/A"
         differentiator_terms = _collect_differentiator_terms(selected_facts)
         differentiator_text = ", ".join(differentiator_terms) if differentiator_terms else "N/A"
+        focus_points = _extract_job_ad_focus_points(job_ad)
+        focus_points_text = ", ".join(focus_points) if focus_points else "N/A"
 
         return (
             "Task: Write a tailored cover letter in Markdown for the target role.\n\n"
@@ -145,6 +161,7 @@ class CoverLetterGenerator:
             "16) If selected facts include differentiator tooling (for example RAG, AI API integration, MCP), include at least one in a concise factual sentence.\n\n"
             "17) Do not describe yourself as 'an AI'; use the plain student wording from the facts instead.\n\n"
             "18) Mention the company name exactly at least once in a factual sentence (for example in the opening or closing paragraph).\n\n"
+            "19) Address at least two concrete job-ad focus points from the provided list below.\n\n"
             "Recommended structure:\n"
             "- Greeting line must be exactly: Dear Hiring Team,\n"
             "- Exactly 4 paragraphs plus greeting line.\n"
@@ -161,6 +178,7 @@ class CoverLetterGenerator:
             f"- Nice-to-have skills: {', '.join(job_ad.nice_to_have_skills) or 'N/A'}\n"
             f"- Tone signals: {job_ad.tone_signals}\n"
             f"- Responsibilities: {', '.join(job_ad.key_responsibilities) or 'N/A'}\n\n"
+            f"- Focus points to address explicitly: {focus_points_text}\n\n"
             f"Style profile:\n"
             f"- Tone: {style_profile.tone_description}\n"
             f"- Avg sentence length: {style_profile.avg_sentence_length}\n"
@@ -344,6 +362,11 @@ def _ensure_soft_skill_grounding(text: str, selected_facts: list[FactsEntry]) ->
     if not soft_entries:
         return text
 
+    # If the draft already contains soft-skill language, do not append a fixed
+    # fallback sentence that can become repetitive across job ads.
+    if _has_soft_skill_language(draft):
+        return text
+
     draft_lower = draft.lower()
     for entry in soft_entries:
         company = _extract_company_from_title(entry.title)
@@ -353,8 +376,27 @@ def _ensure_soft_skill_grounding(text: str, selected_facts: list[FactsEntry]) ->
     anchor = soft_entries[0]
     company = _extract_company_from_title(anchor.title) or "a prior role"
     summary = _soft_skill_summary(anchor.description)
-    sentence = f"In my role at {company}, I developed {summary}."
+    sentence = _soft_skill_fallback_sentence(company, summary, draft)
     return f"{draft}\n\n{sentence}"
+
+
+def _has_soft_skill_language(text: str) -> bool:
+    """Detect whether the draft already contains concrete people-skill wording."""
+
+    lower = text.lower()
+    return any(token in lower for token in _SOFT_SKILL_LANGUAGE_HINTS)
+
+
+def _soft_skill_fallback_sentence(company: str, summary: str, draft: str) -> str:
+    """Build a varied fallback sentence to avoid repeating one fixed phrasing."""
+
+    templates = (
+        "At {company}, I developed {summary}.",
+        "My experience at {company} strengthened {summary}.",
+        "Working at {company}, I built {summary}.",
+    )
+    idx = sum(ord(char) for char in draft) % len(templates)
+    return templates[idx].format(company=company, summary=summary)
 
 
 def _extract_company_from_title(title: str) -> str | None:
@@ -377,3 +419,26 @@ def _soft_skill_summary(description: str) -> str:
     if "technical support" in lower or "maintenance" in lower:
         return "clear communication and practical troubleshooting"
     return "reliable collaboration and day-to-day ownership"
+
+
+def _extract_job_ad_focus_points(job_ad: JobAd) -> list[str]:
+    """Collect concise, actionable focus points from the parsed job ad."""
+
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    for item in [*job_ad.required_skills, *job_ad.nice_to_have_skills, *job_ad.key_responsibilities]:
+        cleaned = re.sub(r"\s+", " ", item.strip())
+        if not cleaned:
+            continue
+        lowered = cleaned.lower()
+        if lowered in seen:
+            continue
+        if len(cleaned) > 64:
+            cleaned = cleaned[:64].rstrip() + "..."
+        seen.add(lowered)
+        collected.append(cleaned)
+        if len(collected) >= 8:
+            break
+
+    return collected

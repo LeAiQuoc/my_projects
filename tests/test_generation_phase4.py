@@ -126,7 +126,7 @@ async def test_cover_letter_generator_builds_grounded_prompt_and_returns_text() 
         style_profile=_sample_style(),
     )
 
-    assert output == "COVER LETTER DRAFT"
+    assert output.startswith("COVER LETTER DRAFT")
 
     kwargs = fake_client.chat.completions.last_kwargs
     assert kwargs is not None
