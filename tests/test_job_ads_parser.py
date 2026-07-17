@@ -22,6 +22,7 @@ Responsibilities:
 
     assert job_ad.company_name == "Example Corp"
     assert job_ad.role_title == "Software Engineer"
+    assert job_ad.source_language == "en"
     assert "Python" in job_ad.required_skills or "SQL" in job_ad.required_skills
     assert job_ad.key_responsibilities
 
@@ -52,6 +53,7 @@ For att soka pa den har annonsen vill vi att du beharskar svenska och engelska f
 
     assert job_ad.company_name == "Nexer Engineering"
     assert job_ad.role_title.lower() == "mjukvaruutvecklare"
+    assert job_ad.source_language == "sv"
     assert "Python" in job_ad.required_skills
     assert "Autosar" in job_ad.required_skills
     assert "C/C++" in job_ad.required_skills
@@ -61,3 +63,22 @@ For att soka pa den har annonsen vill vi att du beharskar svenska och engelska f
     assert "och/eller" not in [skill.lower() for skill in job_ad.required_skills]
     assert "e-post" not in [skill.lower() for skill in job_ad.required_skills]
     assert "Om" not in job_ad.required_skills
+
+
+@pytest.mark.asyncio
+async def test_job_ad_parser_handles_combitech_style_ad() -> None:
+    parser = JobAdParser()
+    job_ad = await parser.parse(
+        """Om jobbet
+Combitech i Göteborg söker fler erfarna teammedlemmar till in-house-verksamheten.
+
+Din roll som mjukvaruutvecklare inom Autonomy & Connectivity
+
+Vi använder språk och verktyg som C, C++, Java, Python och Git.
+"""
+    )
+
+    assert job_ad.company_name == "Combitech"
+    assert "mjukvaruutvecklare" in job_ad.role_title.lower()
+    assert job_ad.source_language == "sv"
+    assert "Python" in job_ad.required_skills

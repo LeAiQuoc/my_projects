@@ -1,1 +1,1 @@
-AI/software engineering student specializing in Python, RAG pipelines, and LLM integration. I have built an AI-powered GitLab repository analyzer at Plejd AB, combining backend engineering with applied machine learning. Comfortable delivering production-facing tools and presenting technical progress clearly.
+Junior AI/software engineer specializing in Python, RAG pipelines, and LLM integration. I build practical systems, stay curious, and care about shipping useful tools with real-world impact.

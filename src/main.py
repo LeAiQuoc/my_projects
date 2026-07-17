@@ -21,6 +21,7 @@ from src.facts.facts_loader import bootstrap_facts_database, load_facts_database
 from src.facts.facts_schema import FactsDatabase
 from src.generation.cover_letter_generator import CoverLetterGenerator
 from src.generation.cv_generator import CVGenerator
+from src.job_ads.company_research import research_company_context
 from src.job_ads.parser import JobAdParser
 from src.job_ads.schema import JobAd
 from src.loop.orchestrator import GenerationOrchestrator, OrchestrationResult
@@ -102,6 +103,7 @@ def _render_generation_markdown(
 ) -> str:
     """Render a single generation result as markdown."""
 
+    labels = _localized_labels(job_ad.source_language)
     issues = result.unresolved_issues or result.evaluation.issues
     issues_block = "\n".join(f"- {issue}" for issue in issues) if issues else "- None"
 
@@ -122,7 +124,7 @@ def _render_generation_markdown(
             else "N/A"
         )
         detector_block = (
-            "## Humanize Detector\n\n"
+            f"## {labels['humanize_detector']}\n\n"
             f"- Executed at: {detector_executed_at or 'N/A'}\n"
             f"- Score: {detector_result.score:.1f}\n"
             f"- Label: {detector_result.label}\n"
@@ -133,7 +135,7 @@ def _render_generation_markdown(
         )
     else:
         detector_block = (
-            "## Humanize Detector\n\n"
+            f"## {labels['humanize_detector']}\n\n"
             f"- Executed at: {detector_executed_at or 'N/A'}\n"
             "- Status: unavailable (detector runtime not found or execution failed)\n\n"
         )
@@ -147,10 +149,10 @@ def _render_generation_markdown(
         f"- Role: {job_ad.role_title}\n"
         f"- Attempts: {result.attempts}\n"
         f"- Passed: {result.evaluation.passed}\n\n"
-        f"## CV\n\n{result.cv_draft}\n\n"
-        f"## Cover Letter\n\n{cover_letter_text}\n\n"
+        f"## {labels['cv']}\n\n{result.cv_draft}\n\n"
+        f"## {labels['cover_letter']}\n\n{cover_letter_text}\n\n"
         f"{detector_block}"
-        f"## Evaluation Summary\n\n"
+        f"## {labels['evaluation_summary']}\n\n"
         f"- Issues:\n{issues_block}\n"
     )
 
@@ -191,6 +193,7 @@ def _render_batch_markdown(results: list[RankedBatchResult]) -> str:
 
     lines.append("")
     for index, item in enumerate(results, start=1):
+        labels = _localized_labels(item.job_ad.source_language)
         issues = item.result.unresolved_issues or item.result.evaluation.issues
         issues_block = "\n".join(f"- {issue}" for issue in issues) if issues else "- None"
         detector_result = run_humanize_detector(
@@ -238,16 +241,16 @@ def _render_batch_markdown(results: list[RankedBatchResult]) -> str:
                 f"- Passed: {item.result.evaluation.passed}",
                 f"- Attempts: {item.result.attempts}",
                 "",
-                "### CV",
+                f"### {labels['cv']}",
                 "",
                 item.result.cv_draft,
                 "",
-                "### Cover Letter",
+                f"### {labels['cover_letter']}",
                 "",
                 item.result.cover_letter_draft,
                 "",
                 *detector_lines,
-                "### Issues",
+                f"### {labels['issues']}",
                 "",
                 issues_block,
                 "",
@@ -271,6 +274,27 @@ def _render_style_profile_markdown(profile: StyleProfile) -> str:
         f"- Structural notes: {profile.structural_notes}\n\n"
         f"## Anchor Snippets\n\n{anchor_block}\n"
     )
+
+
+def _localized_labels(language_code: str | None) -> dict[str, str]:
+    """Return markdown labels localized to the job-ad language."""
+
+    if (language_code or "en").lower().startswith("sv"):
+        return {
+            "cv": "CV",
+            "cover_letter": "Personligt brev",
+            "humanize_detector": "Humanize Detector",
+            "evaluation_summary": "Utvärdering",
+            "issues": "Problem",
+        }
+
+    return {
+        "cv": "CV",
+        "cover_letter": "Cover Letter",
+        "humanize_detector": "Humanize Detector",
+        "evaluation_summary": "Evaluation Summary",
+        "issues": "Issues",
+    }
 
 
 def _create_orchestrator(logger: logging.Logger | None = None) -> GenerationOrchestrator:
@@ -303,6 +327,18 @@ async def _run_generate(
 
     logger.info("Parsing job ad")
     job_ad = await JobAdParser().parse(raw_job_ad, source_url=source_label)
+    company_context = await asyncio.to_thread(
+        research_company_context,
+        job_ad.company_name,
+        job_ad.source_language,
+        job_ad.source_text,
+    )
+    if company_context is not None:
+        job_ad = job_ad.model_copy(
+            update={
+                "company_context": "\n".join([f"- {snippet}" for snippet in company_context.highlights])
+            }
+        )
 
     logger.info("Running generation loop")
     orchestrator = _create_orchestrator(logger)
@@ -333,7 +369,20 @@ async def _run_batch(
     for job_ad_file in job_ad_files:
         logger.info("Parsing job ad file %s", job_ad_file.name)
         raw_text = job_ad_file.read_text(encoding="utf-8")
-        job_ads.append(await parser.parse(raw_text, source_url=str(job_ad_file)))
+        job_ad = await parser.parse(raw_text, source_url=str(job_ad_file))
+        company_context = await asyncio.to_thread(
+            research_company_context,
+            job_ad.company_name,
+            job_ad.source_language,
+            job_ad.source_text,
+        )
+        if company_context is not None:
+            job_ad = job_ad.model_copy(
+                update={
+                    "company_context": "\n".join([f"- {snippet}" for snippet in company_context.highlights])
+                }
+            )
+        job_ads.append(job_ad)
 
     logger.info("Running batch pipeline for %s job ads", len(job_ads))
     orchestrator = _create_orchestrator(logger)

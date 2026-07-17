@@ -1,0 +1,24 @@
+Northwind Tools
+Position: AI Tools Engineer
+
+We are looking for an engineer to work on developer tooling that uses LLMs, retrieval pipelines, and structured evaluation loops.
+
+Requirements:
+- Python
+- Prompt engineering
+- RAG systems
+- API integration
+- Testing
+
+Nice to have:
+- MongoDB
+- CI/CD
+- Technical writing
+
+Responsibilities:
+- Prototype AI-assisted workflows
+- Evaluate output quality and factual accuracy
+- Build internal tools for documentation and search
+- Collaborate with engineers across teams
+
+This is a fast-moving role in a startup-style environment. We want someone pragmatic, curious, and comfortable improving rough systems over time.

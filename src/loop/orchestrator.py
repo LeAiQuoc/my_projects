@@ -9,7 +9,7 @@ from typing import Any
 
 from src.evaluation.evaluator import EvaluationResult, Evaluator
 from src.facts.facts_schema import FactsDatabase
-from src.generation.cover_letter_generator import CoverLetterGenerator
+from src.generation.cover_letter_generator import CoverLetterGenerator, _cap_cover_letter_length
 from src.generation.cv_generator import CVGenerator
 from src.generation.humanize_pass import apply_deterministic_humanize_cleanup, rewrite_for_natural_rhythm
 from src.generation.sanitizer import sanitize_draft
@@ -81,6 +81,7 @@ class GenerationOrchestrator:
             cover_letter_draft = sanitize_draft(cover_letter_raw)
             cover_letter_draft = _ensure_cover_letter_differentiators(cover_letter_draft, facts)
             cover_letter_draft = _strip_driver_license_for_software_roles(cover_letter_draft, job_ad)
+            cover_letter_draft = _cap_cover_letter_length(cover_letter_draft)
             combined_draft = f"{cv_draft}\n\n{cover_letter_draft}".strip()
 
             last_evaluation = await self.evaluator.evaluate(
@@ -125,12 +126,14 @@ class GenerationOrchestrator:
                     style_profile,
                     voice_mode=cv_voice_mode,
                     scene_mode=cv_scene_mode,
+                    language_code=job_ad.source_language,
                 )
                 cover_rewritten = await rewrite_for_natural_rhythm(
                     pre_humanize_cover,
                     style_profile,
                     voice_mode=cover_voice_mode,
                     scene_mode=cover_scene_mode,
+                    language_code=job_ad.source_language,
                 )
 
                 # Stage 2: fidelity gate after voice pull.
@@ -151,6 +154,7 @@ class GenerationOrchestrator:
                     cover_letter_draft = _apply_pre_humanize_cleanup(cover_rewritten)
                     cover_letter_draft = _ensure_cover_letter_differentiators(cover_letter_draft, facts)
                     cover_letter_draft = _strip_driver_license_for_software_roles(cover_letter_draft, job_ad)
+                    cover_letter_draft = _cap_cover_letter_length(cover_letter_draft)
 
                 combined_rewritten = f"{cv_draft}\n\n{cover_letter_draft}".strip()
 

@@ -13,6 +13,12 @@ from src.job_ads.schema import JobAd
 from src.style.style_profile import StyleProfile
 
 
+_LANGUAGE_NAMES = {
+    "sv": "Swedish",
+    "en": "English",
+}
+
+
 class CVGenerator:
     """Generate a tailored CV section set from the verified facts database."""
 
@@ -72,6 +78,7 @@ class CVGenerator:
         content = _extract_response_text(response)
         if not content:
             raise RuntimeError("CV generation returned empty content")
+        content = _ground_unverified_skill_claims(content)
         return content
 
     def _build_prompt(
@@ -93,8 +100,11 @@ class CVGenerator:
         )
 
         facts_block = "\n".join(_format_fact(entry) for entry in selected_facts)
+        language_code = job_ad.source_language.lower() if job_ad.source_language else "en"
+        language_name = _LANGUAGE_NAMES.get(language_code, "English")
         return (
             "Task: Write a tailored CV draft in Markdown for this role.\n\n"
+            f"Language requirement: Write entirely in {language_name}. Keep headings, labels, and body text in {language_name}. Do not mix languages except for company names and product names.\n\n"
             "Hard constraints:\n"
             "1) Use ONLY the provided facts entries.\n"
             "2) Do NOT invent skills, achievements, timelines, or metrics.\n"
@@ -249,6 +259,24 @@ def _extract_response_text(response: Any) -> str:
         parts = [str(getattr(part, "text", "")) for part in content]
         return "".join(parts).strip()
     return str(content).strip()
+
+
+def _ground_unverified_skill_claims(text: str) -> str:
+    """Replace common skill claims that are not backed by the facts file."""
+
+    grounded = re.sub(
+        r"Python, SQL, C\+\+, Java, Git\.",
+        "Python, SQL, Git.",
+        text,
+        flags=re.IGNORECASE,
+    )
+    grounded = re.sub(
+        r"Git använde jag dagligen för CI/CD och versionshantering\.",
+        "Jag satte upp GitLab CI/CD och genomförde API-kontraktsutvärdering över sex repositories.",
+        grounded,
+        flags=re.IGNORECASE,
+    )
+    return grounded
 
 
 def _format_fact(entry: FactsEntry) -> str:

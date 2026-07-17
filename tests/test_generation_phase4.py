@@ -71,6 +71,8 @@ def _sample_job_ad() -> JobAd:
     return JobAd(
         company_name="Example Co",
         role_title="Data Engineer",
+        source_language="en",
+        company_context="Example Co builds practical internal tools for product teams.",
         required_skills=["Python", "SQL"],
         nice_to_have_skills=["Docker"],
         tone_signals="neutral professional",
@@ -110,6 +112,7 @@ async def test_cv_generator_builds_grounded_prompt_and_returns_text() -> None:
     assert isinstance(messages, list)
     user_prompt = messages[1]["content"]
     assert isinstance(user_prompt, str)
+    assert "Language requirement: Write entirely in English" in user_prompt
     assert "Use ONLY the provided facts entries" in user_prompt
     assert "Do NOT invent skills" in user_prompt
     assert "remove unsupported metrics" in user_prompt
@@ -134,16 +137,20 @@ async def test_cover_letter_generator_builds_grounded_prompt_and_returns_text() 
     assert isinstance(messages, list)
     user_prompt = messages[1]["content"]
     assert isinstance(user_prompt, str)
+    assert "Language requirement: Write entirely in English" in user_prompt
     assert "Use ONLY the selected facts entries" in user_prompt
     assert "Do NOT invent skills" in user_prompt
     assert "Include at least one short soft-skill paragraph grounded in selected facts" in user_prompt
     assert "Avoid binary contrast templates" in user_prompt
-    assert "Exactly 4 paragraphs plus greeting line" in user_prompt
+    assert "Exactly 5 paragraphs plus greeting line" in user_prompt
     assert "Greeting line must be exactly: Dear Hiring Team," in user_prompt
     assert "non-technical work fact" in user_prompt
     assert "Soft-skill facts to use explicitly" in user_prompt
     assert "Technical differentiators available in selected facts" in user_prompt
     assert "id=exp-2" in user_prompt
+    assert "Company context:" in user_prompt
+    assert "Aim for 220-300 words total" in user_prompt
+    assert "Write 5 short paragraphs" in user_prompt
 
 
 @pytest.mark.asyncio

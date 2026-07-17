@@ -240,3 +240,31 @@ async def test_evaluator_flags_even_cover_letter_paragraph_lengths() -> None:
     assert result.passed is False
     assert result.per_check_scores["cover_letter_structure"] < 1.0
     assert any("template structure risk: cover-letter paragraphs are too even in length" in issue for issue in result.issues)
+
+
+@pytest.mark.asyncio
+async def test_evaluator_flags_swedish_language_mismatch_and_short_letter() -> None:
+    evaluator = Evaluator(client=_FakeClient('{"unsupported_claims": [], "confidence": 0.95}'))
+    job_ad = JobAd(
+        company_name="Combitech",
+        role_title="mjukvaruutvecklare inom Autonomy & Connectivity",
+        source_language="sv",
+        required_skills=["Python"],
+        nice_to_have_skills=[],
+        tone_signals="professionell",
+        key_responsibilities=["in-house-verksamheten"],
+    )
+
+    draft = (
+        "Hej rekryteringsteamet,\n\n"
+        "I am applying for the role at Combitech. My background fits well.\n\n"
+        "I built a RAG pipeline during my internship.\n\n"
+        "Best regards"
+    )
+    result = await evaluator.evaluate(draft, _sample_facts(), job_ad, _sample_style())
+
+    assert result.passed is False
+    assert result.per_check_scores["language_match"] < 1.0
+    assert result.per_check_scores["cover_letter_length"] < 1.0
+    assert any("language mismatch" in issue for issue in result.issues)
+    assert any("cover letter too short" in issue for issue in result.issues)

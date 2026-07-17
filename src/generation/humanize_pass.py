@@ -18,6 +18,7 @@ async def rewrite_for_natural_rhythm(
     model: str | None = None,
     voice_mode: str = "professional",
     scene_mode: str = "public-writing",
+    language_code: str = "en",
 ) -> str:
     """Rewrite a draft when AI-tone checks flag rhythm as too uniform.
 
@@ -39,6 +40,7 @@ async def rewrite_for_natural_rhythm(
         "You are an expert editor. Rewrite text to sound naturally human and less templated. "
         "Keep all factual content grounded in the original draft. "
         "Do not introduce any new facts, technologies, employers, dates, or achievements. "
+        "Preserve the language of the original draft; do not translate unless the original draft already mixes languages. "
         "Increase the text's burstiness and lexical variety while staying clear and factual. "
         "Never use em dashes or en dashes in the rewritten text."
     )
@@ -47,6 +49,7 @@ async def rewrite_for_natural_rhythm(
         style_profile=style_profile,
         voice_mode=voice_mode,
         scene_mode=scene_mode,
+        language_code=language_code,
     )
 
     try:
@@ -74,6 +77,7 @@ def _build_humanize_prompt(
     style_profile: StyleProfile,
     voice_mode: str,
     scene_mode: str,
+    language_code: str,
 ) -> str:
     """Build a rewrite prompt anchored to profile cadence and constraints."""
 
@@ -97,8 +101,9 @@ def _build_humanize_prompt(
         "11) Avoid formal scaffolding phrases such as 'I am writing to express my interest', 'In terms of', and 'Furthermore'.\n"
         "12) Prefer direct first-person statements with concrete actions over abstract claims.\n"
         "13) Keep opening and closing concise; avoid generic courtesy filler.\n"
-        "14) Strictly avoid generic AI buzzwords and formal academic filler such as Consequently, In conclusion, In summary, Needless to say, Leverage, Utilize, Foster, Cultivate, Optimize, Enhance, Revolutionize, Transform, Tapestry, Testament, Beacon, Labyrinth, Paramount, Invaluable, Game-changing, Groundbreaking, and Multifaceted.\n"
-        "15) If one of those appears, replace it with plainer wording like also, so, in short, keep in mind, use, build, improve, change, reshape, mix, proof, guide, maze, key, vital, really effective, or complex.\n\n"
+        f"14) Preserve the draft language. The draft language is {language_code}. Do not translate it.\n"
+        "15) Strictly avoid generic AI buzzwords and formal academic filler such as Consequently, In conclusion, In summary, Needless to say, Leverage, Utilize, Foster, Cultivate, Optimize, Enhance, Revolutionize, Transform, Tapestry, Testament, Beacon, Labyrinth, Paramount, Invaluable, Game-changing, Groundbreaking, and Multifaceted.\n"
+        "16) If one of those appears, replace it with plainer wording like also, so, in short, keep in mind, use, build, improve, change, reshape, mix, proof, guide, maze, key, vital, really effective, or complex.\n\n"
         f"Scene mode target: {scene_mode}\n"
         f"Scene guidance: {_scene_mode_guidance(scene_mode)}\n"
         f"Voice mode target: {voice_mode}\n"

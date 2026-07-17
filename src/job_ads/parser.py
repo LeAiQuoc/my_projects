@@ -68,6 +68,7 @@ class JobAdParser:
 
         company_name = _extract_company_name(cleaned_text)
         role_title = _extract_role_title(cleaned_text)
+        source_language = _infer_source_language(cleaned_text)
         required_skills = _extract_skills(cleaned_text, required=True)
         nice_to_have_skills = _extract_skills(cleaned_text, required=False)
         tone_signals = _infer_tone_signals(cleaned_text)
@@ -76,6 +77,7 @@ class JobAdParser:
         return JobAd(
             company_name=company_name,
             role_title=role_title,
+            source_language=source_language,
             required_skills=required_skills,
             nice_to_have_skills=nice_to_have_skills,
             tone_signals=tone_signals,
@@ -97,6 +99,7 @@ def _extract_company_name(text: str) -> str:
     """Infer a company name from common job-ad patterns."""
 
     for pattern in (
+        r"([A-ZÅÄÖA-Za-z0-9&\- ]+?)\s+i\s+[A-ZÅÄÖA-Za-z0-9&\- ]+\s+s[oö]ker",
         r"vi\s+p[aå]\s+([A-ZA-Za-z0-9&\- ]+?)\s+s[oö]ker",
         r"company[:\s]+(.+)",
         r"about\s+(.+?)\s+(?:is|are|we)",
@@ -118,6 +121,7 @@ def _extract_role_title(text: str) -> str:
         return "Intresseanmälan"
 
     for pattern in (
+        r"din roll som\s+(.+?)(?:\n\s*\n|\s+vi\s+s[oö]ker|\s+vi\s+soker)",
         r"role[:\s]+(.+)",
         r"position[:\s]+(.+)",
         r"hiring[:\s]+(.+)",
@@ -239,6 +243,55 @@ def _infer_tone_signals(text: str) -> str:
     if any(marker in lower_text for marker in ("corporate", "professional", "formal", "global")):
         return "corporate formal"
     return "neutral professional"
+
+
+def _infer_source_language(text: str) -> str:
+    """Infer whether the ad is Swedish or English using lightweight heuristics."""
+
+    normalized = re.sub(r"\s+", " ", text.lower())
+    lower_text = f" {normalized} "
+    swedish_markers = (
+        " vi ",
+        " du ",
+        " som ",
+        " att ",
+        " för ",
+        " med ",
+        " på ",
+        " är ",
+        " har ",
+        " till ",
+        " oss ",
+        " dig ",
+        " söker ",
+        " gärna ",
+        " rollen ",
+        " jobbet ",
+    )
+    english_markers = (
+        " we ",
+        " you ",
+        " your ",
+        " with ",
+        " for ",
+        " our ",
+        " are ",
+        " have ",
+        " will ",
+        " role ",
+        " team ",
+        " experience ",
+        " responsibilities ",
+        " company ",
+    )
+
+    swedish_score = sum(lower_text.count(marker) for marker in swedish_markers)
+    english_score = sum(lower_text.count(marker) for marker in english_markers)
+
+    if any(char in text for char in "åäöÅÄÖ"):
+        swedish_score += 3
+
+    return "sv" if swedish_score >= english_score else "en"
 
 
 def _extract_bullets(text: str) -> list[str]:

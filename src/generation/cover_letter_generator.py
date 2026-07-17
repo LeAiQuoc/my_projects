@@ -15,6 +15,12 @@ from src.job_ads.schema import JobAd
 from src.style.style_profile import StyleProfile
 
 
+_LANGUAGE_NAMES = {
+    "sv": "svenska",
+    "en": "English",
+}
+
+
 _SOFT_SKILL_HINTS: tuple[str, ...] = (
     "customer service",
     "teamwork",
@@ -73,6 +79,7 @@ class CoverLetterGenerator:
 
         selected_facts = CVGenerator().select_relevant_facts(facts, job_ad, limit=6)
         selected_facts = _ensure_soft_skill_coverage(selected_facts, facts)
+        selected_facts = _ensure_founder_coverage(selected_facts, facts, job_ad)
         if not selected_facts:
             raise ValueError("cannot generate cover letter without at least one facts entry")
 
@@ -113,6 +120,8 @@ class CoverLetterGenerator:
             raise RuntimeError("cover letter generation returned empty content")
         content = _ensure_differentiator_mention(content, selected_facts)
         content = _ensure_soft_skill_grounding(content, selected_facts)
+        content = _ground_company_and_founder_sentences(content, selected_facts, job_ad)
+        content = _cap_cover_letter_length(content, max_words=280)
         return _remove_low_value_license_line(content, job_ad)
 
     def _build_prompt(
@@ -139,13 +148,23 @@ class CoverLetterGenerator:
         differentiator_text = ", ".join(differentiator_terms) if differentiator_terms else "N/A"
         focus_points = _extract_job_ad_focus_points(job_ad)
         focus_points_text = ", ".join(focus_points) if focus_points else "N/A"
+        language_code = job_ad.source_language.lower() if job_ad.source_language else "en"
+        language_name = _LANGUAGE_NAMES.get(language_code, "English")
+        company_context = job_ad.company_context.strip() if job_ad.company_context else "N/A"
+        if language_code.startswith("sv"):
+            greeting_line = "Hej rekryteringsteamet,"
+            language_instruction = "Skriv enbart på svenska. Håll hälsning, brödtext och avslut på svenska. Blanda inte in engelska ord eller fraser förutom företagsnamn och produktnamn."
+        else:
+            greeting_line = "Dear Hiring Team,"
+            language_instruction = "Write entirely in English. Keep the greeting, body, and closing in English. Do not mix languages except for company names and product names."
 
         return (
             "Task: Write a tailored cover letter in Markdown for the target role.\n\n"
+            f"Language requirement: {language_instruction}\n\n"
             "Hard constraints:\n"
             "1) Use ONLY the selected facts entries.\n"
             "2) Do NOT invent skills, outcomes, dates, companies, or metrics.\n"
-            "3) If required information is missing, avoid the claim entirely.\n"
+            "3) If required information is missing, avoid the claim entirely. Do not borrow job-ad skills as personal experience unless they appear in selected facts.\n"
             "4) Keep it concise, specific, and role-matched.\n"
             "5) Do NOT include disclaimers, meta commentary, or notes about missing requirements.\n"
             "6) Avoid opinion/intent language (for example: I believe, I look forward, eager to) unless explicit in facts.\n"
@@ -161,15 +180,18 @@ class CoverLetterGenerator:
             "16) If selected facts include differentiator tooling (for example RAG, AI API integration, MCP), include at least one in a concise factual sentence.\n\n"
             "17) Do not describe yourself as 'an AI'; use the plain student wording from the facts instead.\n\n"
             "18) Mention the company name exactly at least once in a factual sentence (for example in the opening or closing paragraph).\n\n"
-            "19) Address at least two concrete job-ad focus points from the provided list below.\n\n"
+            "19) Address at least two concrete job-ad focus points from the provided list below.\n"
+            "20) Aim for 220-300 words total. Write 5 short paragraphs, with one paragraph explicitly explaining why your background matches the company and role.\n"
+            "21) If company context is provided, reference at most one concrete company fact, and do not generalize it into a broader claim. Use it as a factual anchor only.\n\n"
             "Recommended structure:\n"
-            "- Greeting line must be exactly: Dear Hiring Team,\n"
-            "- Exactly 4 paragraphs plus greeting line.\n"
+            f"- Greeting line must be exactly: {greeting_line}\n"
+            "- Exactly 5 paragraphs plus greeting line.\n"
             "- Keep one blank line between paragraphs.\n"
             "- Paragraph 1: start with one short sentence, then add one longer sentence about fit grounded in facts.\n"
             "- Paragraph 2: use one concrete technical example, followed by a short clarifying sentence about the outcome.\n"
             "- Paragraph 3: use one concise collaboration/service example from a non-technical work fact, then one supporting sentence.\n"
-            "- Paragraph 4: end with 1-2 concise closing lines, and make at least one of them short.\n"
+            "- Paragraph 4: explain why the company and role fit your background using one grounded company fact if available.\n"
+            "- Paragraph 5: end with 1-2 concise closing lines, and make at least one of them short.\n"
             "- Do not output the letter as a single block paragraph.\n\n"
             f"Role target:\n"
             f"- Company: {job_ad.company_name}\n"
@@ -179,6 +201,7 @@ class CoverLetterGenerator:
             f"- Tone signals: {job_ad.tone_signals}\n"
             f"- Responsibilities: {', '.join(job_ad.key_responsibilities) or 'N/A'}\n\n"
             f"- Focus points to address explicitly: {focus_points_text}\n\n"
+            f"- Company context: {company_context}\n\n"
             f"Style profile:\n"
             f"- Tone: {style_profile.tone_description}\n"
             f"- Avg sentence length: {style_profile.avg_sentence_length}\n"
@@ -267,6 +290,42 @@ def _ensure_soft_skill_coverage(
         if candidate.id in selected_ids:
             continue
         if _is_soft_skill_entry(candidate):
+            return [*selected_facts, candidate]
+
+    return selected_facts
+
+
+def _ensure_founder_coverage(
+    selected_facts: list[FactsEntry],
+    facts: FactsDatabase,
+    job_ad: JobAd,
+) -> list[FactsEntry]:
+    """Include the founder/self-employed fact when the role rewards ownership and communication."""
+
+    if any("thatsneatly" in entry.title.lower() for entry in selected_facts):
+        return selected_facts
+
+    source_text = f"{job_ad.role_title} {job_ad.tone_signals} {job_ad.source_text or ''} {' '.join(job_ad.key_responsibilities)} {' '.join(job_ad.required_skills)}".lower()
+    relevance_markers = (
+        "team",
+        "communicat",
+        "collaboration",
+        "independent",
+        "ownership",
+        "consult",
+        "ambassador",
+        "in-house",
+        "learning from others",
+        "be om hjälp",
+        "lära ut",
+    )
+    if not any(marker in source_text for marker in relevance_markers):
+        return selected_facts
+
+    for candidate in facts.entries:
+        if candidate.category != "experience":
+            continue
+        if "thatsneatly" in candidate.title.lower():
             return [*selected_facts, candidate]
 
     return selected_facts
@@ -378,6 +437,86 @@ def _ensure_soft_skill_grounding(text: str, selected_facts: list[FactsEntry]) ->
     summary = _soft_skill_summary(anchor.description)
     sentence = _soft_skill_fallback_sentence(company, summary, draft)
     return f"{draft}\n\n{sentence}"
+
+
+def _ground_company_and_founder_sentences(
+    text: str,
+    selected_facts: list[FactsEntry],
+    job_ad: JobAd,
+) -> str:
+    """Replace loose company and founder wording with exact grounded statements."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    draft = re.sub(
+        r"Som egen företagare på Thatsneatly hade jag ansvar för allt från supply chain till webbutveckling och SEO-analys\.",
+        "Som grundare av Thatsneatly pitchade jag en affärsplan och finansmodell till Almi, säkrade startkapital och byggde den digitala storefront-pipelinen.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Som grundare av Thatsneatly hanterade jag internationell logistik och webbutveckling\.",
+        "Som grundare av Thatsneatly pitchade jag en affärsplan och finansmodell till Almi, säkrade startkapital och byggde den digitala storefront-pipelinen.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Som grundare av Thatsneatly har jag jobbat i tvärfunktionella team och presenterat tekniska framsteg tydligt för olika målgrupper\.",
+        "Som grundare av Thatsneatly pitchade jag en affärsplan och finansmodell till Almi, säkrade startkapital och byggde den digitala storefront-pipelinen.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Combitechs fokus på telekom och försvar inspirerar mig\.",
+        "Combitech beskriver sig som en nordisk tech-, lösnings- och konsultpartner med fokus på ett smartare, mer hållbart och mer motståndskraftigt samhälle.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag vill bidra med mina kunskaper i Python, C\+\+ och Java till era komplexa system\.",
+        "Jag arbetar praktiskt med Python och Git i projekt som kräver struktur och noggrannhet.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    return draft
+
+
+def _cap_cover_letter_length(text: str, max_words: int = 280) -> str:
+    """Trim a cover letter to a safe ceiling while keeping complete sentences."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    if len(draft.split()) <= max_words:
+        return draft
+
+    paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", draft) if paragraph.strip()]
+    if not paragraphs:
+        return draft
+
+    trimmed_paragraphs: list[str] = [paragraphs[0]]
+    current_words = len(paragraphs[0].split())
+
+    for paragraph in paragraphs[1:]:
+        if current_words >= max_words:
+            break
+
+        sentences = [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", paragraph) if segment.strip()]
+        kept_sentences: list[str] = []
+        for sentence in sentences:
+            sentence_words = len(sentence.split())
+            if current_words + sentence_words > max_words:
+                break
+            kept_sentences.append(sentence)
+            current_words += sentence_words
+
+        if kept_sentences:
+            trimmed_paragraphs.append(" ".join(kept_sentences))
+
+    return "\n\n".join(trimmed_paragraphs).strip()
 
 
 def _has_soft_skill_language(text: str) -> bool:

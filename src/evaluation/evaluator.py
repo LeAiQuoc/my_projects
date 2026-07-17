@@ -75,7 +75,7 @@ class Evaluator:
         if not fingerprints.passed:
             issues.extend(fingerprints.issues)
 
-        hallucination = await self._hallucination_check(draft, facts)
+        hallucination = await self._hallucination_check(draft, facts, job_ad)
         scores["hallucination"] = hallucination.score
         if not hallucination.passed:
             issues.extend(hallucination.issues)
@@ -84,6 +84,16 @@ class Evaluator:
         scores["requirement_coverage"] = coverage.score
         if not coverage.passed:
             issues.extend(coverage.issues)
+
+        language_match = self._language_match_check(draft, job_ad)
+        scores["language_match"] = language_match.score
+        if not language_match.passed:
+            issues.extend(language_match.issues)
+
+        cover_length = self._cover_letter_length_check(draft, job_ad)
+        scores["cover_letter_length"] = cover_length.score
+        if not cover_length.passed:
+            issues.extend(cover_length.issues)
 
         style = self._style_match_check(draft, style_profile)
         scores["style_match"] = style.score
@@ -116,7 +126,7 @@ class Evaluator:
             per_check_scores=scores,
         )
 
-    async def _hallucination_check(self, draft: str, facts: FactsDatabase) -> "_CheckResult":
+    async def _hallucination_check(self, draft: str, facts: FactsDatabase, job_ad: JobAd) -> "_CheckResult":
         """Use Deepseek to identify unsupported claims against the facts database."""
 
         client = self.client or _create_default_client()
@@ -162,7 +172,7 @@ class Evaluator:
 
         content = _extract_response_text(response)
         unsupported = _parse_unsupported_claims(content)
-        unsupported = _filter_supported_claims(unsupported, facts)
+        unsupported = _filter_supported_claims(unsupported, facts, job_ad)
         if not unsupported:
             return _CheckResult(passed=True, score=1.0, issues=[])
 
@@ -195,6 +205,57 @@ class Evaluator:
             passed=False,
             score=ratio,
             issues=[f"requirement coverage too low; missing: {', '.join(missing)}"],
+        )
+
+    def _language_match_check(self, draft: str, job_ad: JobAd) -> "_CheckResult":
+        """Ensure Swedish ads produce Swedish draft language."""
+
+        if not job_ad.source_language.lower().startswith("sv"):
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        english_markers = (
+            "dear hiring team",
+            "i am ",
+            "i’m ",
+            "my background",
+            "during my internship",
+            "i also",
+            "i built",
+            "i work",
+            "my experience",
+            "i’m ready",
+        )
+        lower = draft.lower()
+        hits = sum(1 for marker in english_markers if marker in lower)
+        if hits == 0:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        score = max(0.0, 1.0 - (hits / len(english_markers)))
+        return _CheckResult(
+            passed=False,
+            score=score,
+            issues=["language mismatch: cover letter should be written in Swedish for this job ad"],
+        )
+
+    def _cover_letter_length_check(self, draft: str, job_ad: JobAd) -> "_CheckResult":
+        """Keep the cover letter within the requested 200-300 word range."""
+
+        cover_letter = _extract_cover_letter_body(draft) or draft
+        word_count = len(cover_letter.split())
+        if 200 <= word_count <= 300:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        if word_count < 200:
+            return _CheckResult(
+                passed=False,
+                score=max(0.0, word_count / 200.0),
+                issues=[f"cover letter too short; got {word_count} words, target 200-300"],
+            )
+
+        return _CheckResult(
+            passed=False,
+            score=max(0.0, 300.0 / word_count),
+            issues=[f"cover letter too long; got {word_count} words, target 200-300"],
         )
 
     def _style_match_check(self, draft: str, style_profile: StyleProfile) -> "_CheckResult":
@@ -475,13 +536,27 @@ def _parse_unsupported_claims(text: str) -> list[str]:
         return [line for line in lines if line]
 
 
-def _filter_supported_claims(claims: list[str], facts: FactsDatabase) -> list[str]:
+def _filter_supported_claims(claims: list[str], facts: FactsDatabase, job_ad: JobAd) -> list[str]:
     """Drop unsupported-claim hits that are already supported by facts."""
 
-    return [claim for claim in claims if not _claim_is_supported_by_facts(claim, facts)]
+    additional_texts = [
+        job_ad.company_context or "",
+        job_ad.source_text or "",
+        job_ad.role_title,
+        job_ad.company_name,
+        job_ad.tone_signals,
+        " ".join(job_ad.required_skills),
+        " ".join(job_ad.nice_to_have_skills),
+        " ".join(job_ad.key_responsibilities),
+    ]
+    return [
+        claim
+        for claim in claims
+        if not _claim_is_supported_by_facts(claim, facts, additional_texts)
+    ]
 
 
-def _claim_is_supported_by_facts(claim: str, facts: FactsDatabase) -> bool:
+def _claim_is_supported_by_facts(claim: str, facts: FactsDatabase, additional_texts: list[str] | None = None) -> bool:
     """Heuristically accept fact-backed paraphrases and multi-fact summaries."""
 
     claim_norm = _normalize_text(claim)
@@ -493,17 +568,19 @@ def _claim_is_supported_by_facts(claim: str, facts: FactsDatabase) -> bool:
         for entry in facts.entries
     ]
     combined_blob = " ".join(fact_blobs)
+    extra_blobs = [_normalize_text(text) for text in (additional_texts or []) if _normalize_text(text)]
+    combined_support_blob = " ".join([combined_blob, *extra_blobs])
 
     if any(claim_norm in blob for blob in fact_blobs):
         return True
-    if claim_norm in combined_blob:
+    if claim_norm in combined_support_blob:
         return True
 
     claim_tokens = _meaningful_tokens(claim_norm)
     if not claim_tokens:
         return False
 
-    combined_tokens = set(_meaningful_tokens(combined_blob))
+    combined_tokens = set(_meaningful_tokens(combined_support_blob))
     overlap = sum(1 for token in claim_tokens if token in combined_tokens)
     overlap_ratio = overlap / len(claim_tokens)
 
@@ -579,7 +656,7 @@ def _paragraphs(text: str) -> list[str]:
 def _extract_cover_letter_body(text: str) -> str:
     """Extract the cover-letter slice from a combined CV + cover-letter draft."""
 
-    match = re.search(r"(?:^|\n\n)(dear hiring team,|hej,)(.*)\Z", text, flags=re.IGNORECASE | re.DOTALL)
+    match = re.search(r"(?:^|\n\n)(dear hiring team,|hej rekryteringsteamet,|hej,)(.*)\Z", text, flags=re.IGNORECASE | re.DOTALL)
     if not match:
         return ""
     return f"{match.group(1)}{match.group(2)}".strip()

@@ -1,10 +1,13 @@
 entries:
 - id: experience-plejd-internship-software-ai-engineering
   category: experience
-  title: plejd internship(software/ai engineering)
-  description: AI engineering intern at Plejd AB where I built an AI-powered GitLab
-    repository analyzer/README generator, combining backend engineering with applied
-    machine learning, RAG, and CI/CD integration in a production-facing workflow.
+  title: AI Engineering Intern (LIA) — Plejd AB
+  description: Team-led development of an AI-powered GitLab repository analyzer that
+    auto-generates README files and API contract documentation across multiple microservice
+    repositories. Designed a RAG pipeline using MongoDB Atlas for vector storage, the Gemini
+    API for generation, and self-hosted BGE embeddings. Set up GitLab CI/CD, conducted API
+    contract evaluation across six repositories, and presented technical progress as an
+    informal team lead.
   technologies:
   - python
   - mongodb
@@ -12,6 +15,9 @@ entries:
   - AI API integration
   - CI/CD pipeline
   - RAG
+  - MongoDB Atlas
+  - Gemini API
+  - BGE embeddings
   - Git/gitlab
   evidence_url: https://github.com/LeAiQuoc/my_projects
 - id: project-ai-clip-highlighter
@@ -38,11 +44,26 @@ entries:
   - Broadlink IR
   - Raspberry Pi 5
   - Home Assistant
+- id: experience-thatsneatly-founder-tech-lead
+  category: experience
+  title: Founder & Tech Lead — Thatsneatly e-commerce venture
+  description: Pitched a business plan and financial model to Almi, secured startup
+    capital, managed international supply chain logistics, set up banking and tax
+    structures, and engineered the digital storefront pipeline with landing page
+    optimization, SEO analytics, and target-audience tracking.
+  technologies:
+  - Business Planning
+  - Supply Chain
+  - SEO
+  - Analytics
+  - Banking Setup
+  - Web Development
 - id: education-teknikhogskolan-ai-software-development
   category: education
   title: Teknikhogskolan Higher Vocational Education Diploma in AI and Software Development
-  description: Studied AI and software development with practical focus on Python,
-    backend development, and applied AI workflows.(Graduated)
+  description: Completed a Higher Vocational Education Diploma in AI and Software
+    Development (415 YH credits) with a practical focus on Python, backend development,
+    and applied AI workflows.
   technologies:
   - Python
   - AI
@@ -115,6 +136,15 @@ entries:
   - Ollama
   - MCP
   - Harness and loop engineering
+- id: skill-web-development
+  category: skill
+  title: Web Development
+  description: Comfortable building simple internal tools and web apps with Flask,
+    Streamlit, and Django.
+  technologies:
+  - Flask
+  - Streamlit
+  - Django
 - id: skill-driving-license
   category: skill
   title: Driving License
