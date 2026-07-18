@@ -1,9 +1,52 @@
 # CV and Cover Letter Agent
 
-This project generates tailored jobapplication Material from structured personal facts, a saved writing-style profile, and a raw job ad. The main goal is not just text generation, but controlled generation: 
-the app tries to keep claims grounded in the facts file, match the language of the job ad, and produce a separate review artifact alongside the final cover letter.
+A job-application generator built around **harness and loop engineering**, not just prompting: it grounds every claim in a structured facts database, runs generation through a bounded generate-evaluate-retry loop, and produces a separate scoring artifact for every cover letter it writes — so the system's own reliability checks are inspectable, not just asserted.
 
-At the moment the public demo flow is built around a sanitized sample dataset. A recruiter can clone the repository, add a DeepSeek API key, and run the example job ad immediately.
+A recruiter can clone the repo, add a DeepSeek API key, and run the included sanitized demo end to end in a few minutes (see [First-time setup](#first-time-setup)).
+
+## Why this was harder than "call an LLM with a prompt"
+
+- **Grounding, not just tone.** A dedicated evaluator step cross-checks every factual claim in a draft against the facts database before it ships — catching not just invented achievements, but softer *unsupported relevance claims* (e.g. a skill described as "fitting well with" the candidate's background with no corresponding facts entry behind it).
+- **Detector-resistant by structure, not by paraphrasing.** Early versions passed an internal AI-tone check but still failed external detectors like Pangram and Copyleaks. The fix wasn't more aggressive rewriting — it was measuring and varying actual structural properties (sentence-rhythm variance across paragraphs, cross-letter self-similarity) that generic phrasing changes don't touch.
+- **A closed generate → evaluate → retry loop, with a bounded stop condition.** Failed drafts get a targeted correction note describing exactly what to fix, not a blind "try again." The loop has an explicit retry ceiling and reports unresolved issues instead of silently shipping a flagged draft.
+- **Style learned from the person's own writing, not a tone preset.** The style profile is extracted once from real writing samples (past cover letters, freewritten notes) into structured attributes (sentence-length variance, tone, recurring phrasing), rather than prompting for a generic "professional" or "confident" tone.
+
+## What a generated review artifact looks like
+
+Every cover letter ships with a companion scoring file. Sanitized example:
+
+```markdown
+## Humanize Detector
+- Score: 3.0 | Label: Minimal AI signals | Classification: HUMAN_ONLY
+- Top issues:
+  - cross-para-burstiness (medium): sentence rhythm uniform across paragraphs (σCV=0.02);
+    suggestion: vary cadence between terse and discursive paragraphs
+
+## Evaluator
+- unsupported claim: "[skill] mentioned in the ad fits well with my background" — no
+  matching facts.yaml entry for [skill]
+- style mismatch: sentence-length profile differs from style profile (avg delta=7.32)
+```
+
+This is the part of the project I'd point a technical reviewer to first — it's evidence the grounding and detection logic actually runs and catches real issues, not just a description of intended behavior.
+
+## Architecture
+
+```
+facts.yaml ──┐
+             ├─▶ fact-relevance scorer ──▶ generator ──▶ draft
+style_profile.json ──┘                                    │
+                                                            ▼
+                                                       evaluator
+                                              (hallucination / style / structure)
+                                                            │
+                                        pass ◀──────────────┴──────────────▶ fail
+                                         │                                    │
+                                         ▼                          targeted correction note
+                                  PDF + scoring file                         │
+                                         ▲                                    │
+                                         └──────────── retry (bounded) ◀──────┘
+```
 
 ## What the app does
 
@@ -21,7 +64,7 @@ At the moment the public demo flow is built around a sanitized sample dataset. A
 
 ## Customize your data
 
-The repository currently ships with a sanitized demo identity. To use the app for yourself, replace the demo content in these places:
+The repository ships with a sanitized demo identity. To use the app for yourself, replace the demo content in these places:
 
 ### 1. Fill in your facts database
 
