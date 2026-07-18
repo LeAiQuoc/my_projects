@@ -30,9 +30,15 @@ def default_output_stem(source: str) -> str:
 def company_output_stem(prefix: str, company_name: str) -> str:
     """Build a default filename stem from the company name."""
 
-    company_slug = _slugify(company_name) or "company"
+    company_slug = company_slugify(company_name)
     prefix_slug = _slugify(prefix) or "output"
     return f"{prefix_slug}_{company_slug}"
+
+
+def company_slugify(company_name: str) -> str:
+    """Return a safe filename slug derived from the company name."""
+
+    return _slugify(company_name) or "company"
 
 
 def render_cv_markdown(source_label: str, job_ad: JobAd, cv_text: str) -> str:

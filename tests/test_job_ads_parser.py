@@ -82,3 +82,19 @@ Vi använder språk och verktyg som C, C++, Java, Python och Git.
     assert "mjukvaruutvecklare" in job_ad.role_title.lower()
     assert job_ad.source_language == "sv"
     assert "Python" in job_ad.required_skills
+
+
+@pytest.mark.asyncio
+async def test_job_ad_parser_falls_back_to_filename_prefix_for_generic_heading() -> None:
+    parser = JobAdParser()
+    job_ad = await parser.parse(
+        """Arbetsbeskrivning
+
+Om Lysio Research
+
+Vi behöver nu utöka vårt team med en utvecklare.
+""",
+        source_url="job_ads/lysio_job_ad.txt",
+    )
+
+    assert job_ad.company_name == "Lysio Research"

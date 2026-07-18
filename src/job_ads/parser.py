@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
+from urllib.parse import urlparse
 from typing import Any, Sequence
 
 from .schema import JobAd
@@ -68,6 +70,10 @@ class JobAdParser:
 
         company_name = _extract_company_name(cleaned_text)
         role_title = _extract_role_title(cleaned_text)
+        if _looks_like_generic_heading(company_name):
+            company_name = _infer_company_name_from_source(source_url) or company_name
+        if _looks_like_generic_heading(role_title):
+            role_title = _infer_role_title_from_source(source_url) or role_title
         source_language = _infer_source_language(cleaned_text)
         required_skills = _extract_skills(cleaned_text, required=True)
         nice_to_have_skills = _extract_skills(cleaned_text, required=False)
@@ -99,6 +105,8 @@ def _extract_company_name(text: str) -> str:
     """Infer a company name from common job-ad patterns."""
 
     for pattern in (
+        r"^\s*om\s+(?!jobbet\b|tjansten\b|tjänsten\b)([A-ZÅÄÖA-Za-z0-9&\- ]+?)\s*$",
+        r"vi\s+p[aå]\s+([A-ZÅÄÖA-Za-z0-9&\- ]+?)\s+(?:arbetar|är|ar|s[oö]ker|vill)",
         r"([A-ZÅÄÖA-Za-z0-9&\- ]+?)\s+i\s+[A-ZÅÄÖA-Za-z0-9&\- ]+\s+s[oö]ker",
         r"vi\s+p[aå]\s+([A-ZA-Za-z0-9&\- ]+?)\s+s[oö]ker",
         r"company[:\s]+(.+)",
@@ -106,7 +114,7 @@ def _extract_company_name(text: str) -> str:
         r"om\s+([A-ZA-Za-z0-9&\- ]+?)\s+i\s+[A-ZA-Za-z0-9&\- ]+",
         r"([A-ZA-Za-z0-9&\- ]+?)\s+vaxer\b",
     ):
-        match = re.search(pattern, text, flags=re.IGNORECASE)
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
         if match:
             return match.group(1).strip().splitlines()[0][:120]
     first_line = _meaningful_lines(text)[0] if _meaningful_lines(text) else ""
@@ -134,6 +142,56 @@ def _extract_role_title(text: str) -> str:
             return match.group(1).strip().splitlines()[0][:120]
     first_line = _meaningful_lines(text)[0] if _meaningful_lines(text) else ""
     return first_line[:120] if first_line else "Unknown Role"
+
+
+def _looks_like_generic_heading(value: str) -> bool:
+    """Detect parser fallbacks that are really section headings, not identifiers."""
+
+    normalized = value.strip().lower()
+    return normalized in {
+        "arbetsbeskrivning",
+        "om jobbet",
+        "om tjänsten",
+        "om tjansten",
+        "kvalifikationer",
+        "meriterande",
+        "ansökan",
+        "ansokan",
+        "unknown company",
+        "unknown role",
+    }
+
+
+def _infer_company_name_from_source(source_url: str | None) -> str | None:
+    """Infer a company-like name from the job-ad filename prefix."""
+
+    prefix = _source_prefix(source_url)
+    if not prefix:
+        return None
+    return " ".join(part.capitalize() for part in prefix.split("-"))
+
+
+def _infer_role_title_from_source(source_url: str | None) -> str | None:
+    """Use the filename prefix as a last-resort role placeholder when needed."""
+
+    _ = source_url
+    return None
+
+
+def _source_prefix(source_url: str | None) -> str | None:
+    """Return the filename prefix before the first underscore, if present."""
+
+    if not source_url:
+        return None
+
+    parsed = urlparse(source_url)
+    path_value = parsed.path if parsed.scheme in {"http", "https"} else source_url
+    stem = Path(path_value).stem.strip()
+    if not stem:
+        return None
+
+    prefix = stem.split("_", 1)[0].strip("-_")
+    return prefix or stem
 
 
 def _extract_skills(text: str, required: bool) -> list[str]:

@@ -25,7 +25,7 @@ from src.job_ads.company_research import research_company_context
 from src.job_ads.parser import JobAdParser
 from src.job_ads.schema import JobAd
 from src.loop.orchestrator import GenerationOrchestrator, OrchestrationResult
-from src.output_rendering import company_output_stem, render_cv_markdown, write_cover_letter_pdf
+from src.output_rendering import company_output_stem, company_slugify, render_cv_markdown, write_cover_letter_pdf
 from src.pipeline.batch import BatchPipeline, RankedBatchResult
 from src.style.style_extractor import StyleExtractor
 from src.style.style_profile import StyleProfile
@@ -389,7 +389,7 @@ async def _run_generate_cover_letter(
     facts_file: Path,
     style_file: Path,
     logger: logging.Logger,
-) -> tuple[JobAd, str, str]:
+) -> tuple[JobAd, str, str, EvaluationResult, HumanizeDetectorResult | None, str]:
     """Execute standalone cover-letter generation asynchronously."""
 
     job_ad, source_label, facts, style_profile = await _load_generation_context(
@@ -402,7 +402,14 @@ async def _run_generate_cover_letter(
     logger.info("Generating standalone cover letter")
     cover_letter = await CoverLetterGenerator().generate(facts, job_ad, style_profile)
     cover_letter = _finalize_cover_letter_for_rendering(cover_letter, job_ad)
-    return job_ad, source_label, cover_letter
+    detector_executed_at = datetime.now().isoformat(timespec="seconds")
+    detector_feedback = run_humanize_detector(
+        cover_letter,
+        scene_mode="public-writing",
+        voice_mode="professional",
+    )
+    evaluation = await Evaluator().evaluate(cover_letter, facts, job_ad, style_profile)
+    return job_ad, source_label, cover_letter, evaluation, detector_feedback, detector_executed_at
 
 
 async def _run_batch(
@@ -495,6 +502,65 @@ def _resolve_pdf_output(output: Path | None, company_name: str, folder: str) -> 
         return output if output.suffix.lower() == ".pdf" else output.with_suffix(".pdf")
 
     return Path(folder) / f"{company_output_stem('cover_letter', company_name)}.pdf"
+
+
+def _resolve_cover_letter_review_output(company_name: str, folder: str) -> Path:
+    """Resolve the companion scoring/review markdown path for a cover letter."""
+
+    company_slug = company_slugify(company_name)
+    return Path(folder) / f"{company_slug}_scoring_and_review.md"
+
+
+def _render_cover_letter_review_markdown(
+    job_ad: JobAd,
+    evaluation: EvaluationResult,
+    detector_result: HumanizeDetectorResult | None,
+    detector_executed_at: str,
+) -> str:
+    """Render the standalone cover-letter detector and evaluation summary."""
+
+    labels = _localized_labels(job_ad.source_language)
+    issues = evaluation.issues
+    issues_block = "\n".join(f"- {issue}" for issue in issues) if issues else "- None"
+
+    if detector_result is not None:
+        top_issues = detector_result.issues[:5]
+        top_issues_block = (
+            "\n".join(
+                f"- {issue.issue_type} ({issue.severity}): {issue.text}; suggestion: {issue.suggestion}"
+                for issue in top_issues
+            )
+            if top_issues
+            else "- None"
+        )
+        voice_drift = (
+            f"{detector_result.voice_drift:.2f}"
+            if detector_result.voice_drift is not None
+            else "N/A"
+        )
+        detector_block = (
+            f"## {labels['humanize_detector']}\n\n"
+            f"- Executed at: {detector_executed_at}\n"
+            f"- Score: {detector_result.score:.1f}\n"
+            f"- Label: {detector_result.label}\n"
+            f"- Document classification: {detector_result.document_classification}\n"
+            f"- Voice drift: {voice_drift}\n\n"
+            "- Top issues:\n"
+            f"{top_issues_block}\n\n"
+        )
+    else:
+        detector_block = (
+            f"## {labels['humanize_detector']}\n\n"
+            f"- Executed at: {detector_executed_at}\n"
+            "- Status: unavailable (detector runtime not found or execution failed)\n\n"
+        )
+
+    return (
+        f"# {job_ad.company_name} Scoring And Review\n\n"
+        f"{detector_block}"
+        f"## {labels['evaluation_summary']}\n\n"
+        f"- Issues:\n{issues_block}\n"
+    )
 
 
 @click.group()
@@ -616,7 +682,7 @@ def generate_cl(job_ad_source: str, facts_file: Path, style_file: Path, output: 
 
     logger = logging.getLogger("cv_coverletter_agent")
     try:
-        job_ad, source_label, cover_letter = asyncio.run(
+        job_ad, source_label, cover_letter, evaluation, detector_feedback, detector_executed_at = asyncio.run(
             _run_generate_cover_letter(job_ad_source, facts_file, style_file, logger)
         )
     except (click.ClickException, FileNotFoundError, ValueError, RuntimeError) as exc:
@@ -624,6 +690,14 @@ def generate_cl(job_ad_source: str, facts_file: Path, style_file: Path, output: 
 
     resolved_output = _resolve_pdf_output(output, job_ad.company_name, "outputs_cl")
     write_cover_letter_pdf(resolved_output, source_label, job_ad, cover_letter)
+    review_output = _resolve_cover_letter_review_output(job_ad.company_name, "outputs_cl")
+    review_markdown = _render_cover_letter_review_markdown(
+        job_ad,
+        evaluation,
+        detector_feedback,
+        detector_executed_at,
+    )
+    _echo_or_write(review_markdown, review_output)
     click.echo(f"Wrote output to {resolved_output}")
 
 

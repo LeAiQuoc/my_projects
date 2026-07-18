@@ -18,6 +18,7 @@ def _job_ad() -> JobAd:
     return JobAd(
         company_name="Acme",
         role_title="Software Engineer",
+        source_language="en",
         required_skills=["python"],
         nice_to_have_skills=[],
         tone_signals="pragmatic",
@@ -141,7 +142,14 @@ def test_generate_cl_command_writes_pdf_to_outputs_cl(tmp_path: Path, monkeypatc
     async def _fake_run_generate_cover_letter(job_ad_source: str, facts_file: Path, style_file: Path, logger):
         _ = facts_file, style_file, logger
         assert job_ad_source == str(job_ad_file)
-        return _job_ad(), "job-ad.txt", "Hej rekryteringsteamet.\n\nMed vänliga hälsningar, John"
+        return (
+            _job_ad(),
+            "job-ad.txt",
+            "Hej rekryteringsteamet.\n\nMed vänliga hälsningar, John",
+            EvaluationResult(passed=True, issues=[], per_check_scores={"ai_tone": 1.0}),
+            None,
+            "2026-07-18T09:15:27",
+        )
 
     monkeypatch.setattr("src.main._run_generate_cover_letter", _fake_run_generate_cover_letter)
 
@@ -161,8 +169,11 @@ def test_generate_cl_command_writes_pdf_to_outputs_cl(tmp_path: Path, monkeypatc
 
         assert result.exit_code == 0, result.output
         output_file = Path("outputs_cl") / "cover_letter_acme.pdf"
+        review_file = Path("outputs_cl") / "acme_scoring_and_review.md"
         assert output_file.exists()
+        assert review_file.exists()
         assert output_file.read_bytes().startswith(b"%PDF")
+        assert "## Evaluation Summary" in review_file.read_text(encoding="utf-8")
 
 
 def test_cover_letter_title_is_language_aware() -> None:
