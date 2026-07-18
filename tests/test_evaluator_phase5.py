@@ -268,3 +268,48 @@ async def test_evaluator_flags_swedish_language_mismatch_and_short_letter() -> N
     assert result.per_check_scores["cover_letter_length"] < 1.0
     assert any("language mismatch" in issue for issue in result.issues)
     assert any("cover letter too short" in issue for issue in result.issues)
+
+
+@pytest.mark.asyncio
+async def test_evaluator_flags_unsupported_skill_claims() -> None:
+    evaluator = Evaluator(client=_FakeClient('{"unsupported_claims": [], "confidence": 0.95}'))
+
+    draft = (
+        "I have experience of the LEMP stack from my education. "
+        "I also use Python and SQL in practical projects."
+    )
+    result = await evaluator.evaluate(draft, _sample_facts(), _sample_job_ad(), _sample_style())
+
+    assert result.passed is False
+    assert result.per_check_scores["skill_claim_support"] < 1.0
+    assert any("unsupported skill claim" in issue for issue in result.issues)
+
+
+@pytest.mark.asyncio
+async def test_evaluator_flags_swedish_skill_claims() -> None:
+    evaluator = Evaluator(client=_FakeClient('{"unsupported_claims": [], "confidence": 0.95}'))
+
+    draft = (
+        "Tekniskt sett är jag trygg med LEMP-stacken. "
+        "Jag bygger gärna vidare inom det området."
+    )
+    result = await evaluator.evaluate(draft, _sample_facts(), _sample_job_ad(), _sample_style())
+
+    assert result.passed is False
+    assert result.per_check_scores["skill_claim_support"] < 1.0
+    assert any("unsupported skill claim" in issue for issue in result.issues)
+
+
+@pytest.mark.asyncio
+async def test_evaluator_flags_forced_connector_sentences() -> None:
+    evaluator = Evaluator(client=_FakeClient('{"unsupported_claims": [], "confidence": 0.95}'))
+
+    draft = (
+        "As a forklift operator, I learned to work accurately under pressure. "
+        "That experience taught me communication and cross-functional teamwork."
+    )
+    result = await evaluator.evaluate(draft, _sample_facts(), _sample_job_ad(), _sample_style())
+
+    assert result.passed is False
+    assert result.per_check_scores["forced_connector"] < 1.0
+    assert any("forced connector" in issue for issue in result.issues)

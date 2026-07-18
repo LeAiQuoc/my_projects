@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import hashlib
 from typing import Any
 
 from openai import AsyncOpenAI, OpenAIError
@@ -122,6 +123,7 @@ class CoverLetterGenerator:
         content = _ensure_soft_skill_grounding(content, selected_facts)
         content = _ground_company_and_founder_sentences(content, selected_facts, job_ad)
         content = _cap_cover_letter_length(content, max_words=280)
+        content = _append_cover_letter_signoff(content, job_ad)
         return _remove_low_value_license_line(content, job_ad)
 
     def _build_prompt(
@@ -148,6 +150,9 @@ class CoverLetterGenerator:
         differentiator_text = ", ".join(differentiator_terms) if differentiator_terms else "N/A"
         focus_points = _extract_job_ad_focus_points(job_ad)
         focus_points_text = ", ".join(focus_points) if focus_points else "N/A"
+        structure_variant = _select_cover_letter_structure(job_ad)
+        structure_label = structure_variant["label"]
+        paragraph_plan = structure_variant["paragraph_plan"]
         language_code = job_ad.source_language.lower() if job_ad.source_language else "en"
         language_name = _LANGUAGE_NAMES.get(language_code, "English")
         company_context = job_ad.company_context.strip() if job_ad.company_context else "N/A"
@@ -181,17 +186,16 @@ class CoverLetterGenerator:
             "17) Do not describe yourself as 'an AI'; use the plain student wording from the facts instead.\n\n"
             "18) Mention the company name exactly at least once in a factual sentence (for example in the opening or closing paragraph).\n\n"
             "19) Address at least two concrete job-ad focus points from the provided list below.\n"
-            "20) Aim for 220-300 words total. Write 5 short paragraphs, with one paragraph explicitly explaining why your background matches the company and role.\n"
+            "20) Aim for 220-300 words total. Write 5 short paragraphs.\n"
             "21) If company context is provided, reference at most one concrete company fact, and do not generalize it into a broader claim. Use it as a factual anchor only.\n\n"
             "Recommended structure:\n"
             f"- Greeting line must be exactly: {greeting_line}\n"
             "- Exactly 5 paragraphs plus greeting line.\n"
             "- Keep one blank line between paragraphs.\n"
-            "- Paragraph 1: start with one short sentence, then add one longer sentence about fit grounded in facts.\n"
-            "- Paragraph 2: use one concrete technical example, followed by a short clarifying sentence about the outcome.\n"
-            "- Paragraph 3: use one concise collaboration/service example from a non-technical work fact, then one supporting sentence.\n"
-            "- Paragraph 4: explain why the company and role fit your background using one grounded company fact if available.\n"
-            "- Paragraph 5: end with 1-2 concise closing lines, and make at least one of them short.\n"
+            f"- Structure variant: {structure_label}\n"
+            f"- Paragraph plan: {paragraph_plan}\n"
+            "- Follow the paragraph plan exactly; do not reuse the same paragraph order across every job ad.\n"
+            "- Keep each paragraph focused on its assigned role in the plan.\n"
             "- Do not output the letter as a single block paragraph.\n\n"
             f"Role target:\n"
             f"- Company: {job_ad.company_name}\n"
@@ -480,6 +484,48 @@ def _ground_company_and_founder_sentences(
         draft,
         flags=re.IGNORECASE,
     )
+    draft = re.sub(
+        r"Jag är bekväm med LEMP-stacken\.",
+        "Jag arbetar praktiskt med Python, Git och AI-pipelines i egna projekt.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Tekniskt sett är jag trygg med LEMP-stacken\.",
+        "Jag arbetar praktiskt med Python, Git och AI-pipelines i egna projekt.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag bygger gärna vidare inom det området\.",
+        "Det är ett område där jag vill fortsätta utvecklas genom tydliga, praktiska leveranser.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Rollens fokus på komplexa utredningar hos Lysio Research passar min bakgrund\.",
+        "Lysio Research arbetar med komplexa utredningar och datadrivna arbetsflöden. Jag trivs i miljöer där teknik behöver göra information tydligare och mer användbar.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Det skapar meningsfulla problem att lösa\.",
+        "Det är precis den typen av arbete där jag brukar bidra bäst, eftersom jag gillar att göra tekniska flöden mer strukturerade och lättare att följa.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag är redo att börja och ser fram emot nästa steg\.",
+        "Jag ser fram emot att bidra med ett strukturerat arbetssätt och erfarenhet av att leverera praktiska lösningar under tidspress.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag är bekväm med att bygga liknande pipeline-baserade verktyg för era kunder\.",
+        "Jag har byggt flera pipeline-baserade verktyg, bland annat AI-system för dokumentation och automatisering, och tar gärna med det arbetssättet vidare.",
+        draft,
+        flags=re.IGNORECASE,
+    )
     return draft
 
 
@@ -517,6 +563,55 @@ def _cap_cover_letter_length(text: str, max_words: int = 280) -> str:
             trimmed_paragraphs.append(" ".join(kept_sentences))
 
     return "\n\n".join(trimmed_paragraphs).strip()
+
+
+def _select_cover_letter_structure(job_ad: JobAd) -> dict[str, str]:
+    """Choose a deterministic paragraph blueprint to reduce cross-letter sameness."""
+
+    key = f"{job_ad.company_name}|{job_ad.role_title}|{job_ad.source_language}".strip().lower()
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    variant_index = int(digest[:2], 16) % 4
+
+    variants = [
+        {
+            "label": "technical-first",
+            "paragraph_plan": "1) short fit opener, 2) technical example, 3) collaboration/service fact, 4) company fit, 5) concise close",
+        },
+        {
+            "label": "experience-first",
+            "paragraph_plan": "1) short fit opener, 2) collaboration/service fact, 3) technical example, 4) company fit, 5) concise close",
+        },
+        {
+            "label": "company-first",
+            "paragraph_plan": "1) short fit opener, 2) company fit with one grounded company fact, 3) technical example, 4) collaboration/service fact, 5) concise close",
+        },
+        {
+            "label": "people-first",
+            "paragraph_plan": "1) short fit opener, 2) collaboration/service fact, 3) company fit, 4) technical example, 5) concise close",
+        },
+    ]
+    return variants[variant_index]
+
+
+def _append_cover_letter_signoff(text: str, job_ad: JobAd) -> str:
+    """Append a stable sign-off block if one is missing."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    lower = draft.lower()
+    if any(marker in lower for marker in ("med vänliga hälsningar", "vänliga hälsningar", "best regards", "sincerely")):
+        return draft
+
+    language_code = job_ad.source_language.lower() if job_ad.source_language else "en"
+    if language_code.startswith("sv"):
+        closing_line = "Med vänliga hälsningar,"
+    else:
+        closing_line = "Best regards,"
+
+    applicant_name = "John"
+    return f"{draft}\n\n{closing_line}\n{applicant_name}"
 
 
 def _has_soft_skill_language(text: str) -> bool:

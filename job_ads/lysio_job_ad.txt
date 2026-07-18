@@ -1,0 +1,68 @@
+Arbetsbeskrivning
+
+Om Lysio Research
+
+Vi på Lysio Research arbetar med undersökningar och utredningar som leder till samhällsutveckling.
+
+Bland våra kunder finns de flesta kommuner i landet och flera regioner och myndigheter.
+
+De undersökningar vi genomför är varierande, ofta komplexa och framförallt viktiga.
+
+Många beslut fattas av kommuner, myndigheter, företagsledningar och andra aktörer baserat på resultatet i mätningar som vi genomfört.
+
+Vi är ett växande företag som vunnit flera Gasellpriser.
+
+För nuvarande är vi 30 anställda (+ flertal intervjuare).
+
+Självklart erbjuder vi friskvårdsbidrag och tjänstepension för våra anställda.
+
+Hos oss får du arbeta i en roll där du kan växa och utvecklas.
+
+Om tjänsten
+
+Gillar du siffror, IT och samhällsfrågor och vill arbeta med oss i undersökningar som leder till samhällsutveckling?
+
+Vi behöver nu utöka vårt team med en utvecklare.
+
+I denna roll arbetar du både med att bygga infrastruktur och skapa webbapplikationer som sedan används internt av oss och kundspecifika lösningar.
+
+Det kommer också förekomma arbete i kundprojekt, främst databearbetning ("data wrangling") och redovisning av resultat i olika format som t.ex.
+
+PowerPoint/Excel eller webbaserade dashboards.
+
+Lysio Research vill vara med och bidra till samhällsutveckling genom att använda och främja fri programvara.
+
+Därför använder vi oss främst av open source-mjukvara i vår utvecklingsstack.
+
+Du kommer, vid intresse, ha möjlighet och uppmuntras att själv bidra till den mjukvara och de bibliotek vi använder.
+
+På Lysio tror vi på att de anställda skall kunna växa inom organisationen, därför innebär tjänsten stor möjlighet att utvecklas och på sikt ta mer eget ansvar för automatiserings- och utvecklingsprojekt.
+
+Vem är du?
+
+Vi söker dig som har ett samhällsintresse, gillar undersökningar och vill lära dig mer om de metoder och verktyg som används i undersökningsbranschen.
+Du har programmering som intresse och använder detta frekvent, antingen i jobbet eller privat.
+Du trivs med att ha många olika uppgifter samtidigt och att arbeta i ett högt tempo. Det är av stor vikt att ha kapaciteten att jobba mot deadlines, prioritera, vara noggrann och självgående.
+Du bör ha en akademisk examen inom IT, matematik, statistik eller annat område som vi bedömer likvärdigt.
+
+Viss statistikutbildning på universitetsnivå är ett krav.
+Det är till fördel om du har intresse av att visuellt presentera statistik.
+Du har nyligen tagit din examen och är i början av din karriär.
+Du kan arbeta på något av våra kontor i Göteborg eller Lund.
+Kvalifikationer
+
+Mycket hög IT-vana
+Erfarenhet av databearbetning med Python/Pandas eller R
+Erfarenhet av webbutveckling med Python
+God vana av AI-stödd programmering med Claude Code eller liknande
+Allmänt intresse för siffror och data science
+Effektiv och självgående
+Social förmåga och trygghet i möten med nya människor
+Meriterande
+
+Kunskaper inom LEMP-stacken
+Kunskap inom DevOps
+God vana av att arbeta med Excel och PowerPoint
+Vana av att arbeta i SPSS eller annan statistikprogramvara
+Vana av BI/ETL-verktyg så som Tableau/QlikView/Power BI
+Känsla för UI/UX-design och datavisualisering

@@ -35,6 +35,13 @@ _STRUCTURAL_CLOSING_PHRASES: tuple[tuple[str, str], ...] = (
     (r"\blook forward to the opportunity to discuss further\b", "look forward to the opportunity to discuss further"),
 )
 
+_SKILL_CLAIM_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(i have experience(?: in| with| of)?|i've experience(?: in| with| of)?|i am comfortable with|i'm comfortable with|i am familiar with|i'm familiar with|i use|i've used|i have used|i worked with|i have worked with|i built|i developed|my experience with)\b", re.IGNORECASE),
+    re.compile(r"\b(comfortable with|familiar with|experience with|experience of|worked with|built|developed|used|use)\b", re.IGNORECASE),
+    re.compile(r"\b(jag har erfarenhet av|jag har konkret erfarenhet av|jag är bekväm med|jag ar bekvam med|jag är trygg med|jag ar trygg med|jag använder|jag anvander|jag har arbetat med|jag har byggt|jag byggde|jag utvecklade|jag kan)\b", re.IGNORECASE),
+    re.compile(r"\b(tekniskt sett är jag trygg med|tekniskt sett ar jag trygg med|jag bygger gärna vidare|jag bygger garna vidare|jag ser mig|jag har erfarenhet inom|jag har erfarenhet inom)\b", re.IGNORECASE),
+)
+
 
 class EvaluationResult(BaseModel):
     """Structured result returned by the evaluator."""
@@ -79,6 +86,16 @@ class Evaluator:
         scores["hallucination"] = hallucination.score
         if not hallucination.passed:
             issues.extend(hallucination.issues)
+
+        skill_claim_support = self._skill_claim_support_check(draft, facts)
+        scores["skill_claim_support"] = skill_claim_support.score
+        if not skill_claim_support.passed:
+            issues.extend(skill_claim_support.issues)
+
+        forced_connector = self._forced_connector_check(draft, facts)
+        scores["forced_connector"] = forced_connector.score
+        if not forced_connector.passed:
+            issues.extend(forced_connector.issues)
 
         coverage = self._requirement_coverage_check(draft, job_ad)
         scores["requirement_coverage"] = coverage.score
@@ -235,6 +252,93 @@ class Evaluator:
             passed=False,
             score=score,
             issues=["language mismatch: cover letter should be written in Swedish for this job ad"],
+        )
+
+    def _skill_claim_support_check(self, draft: str, facts: FactsDatabase) -> "_CheckResult":
+        """Ensure explicit skill assertions are grounded in the facts database."""
+
+        cover_letter = _extract_cover_letter_body(draft) or draft
+        sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", cover_letter) if sentence.strip()]
+        if not sentences:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        unsupported_claims: list[str] = []
+        for sentence in sentences:
+            if not _looks_like_skill_claim(sentence):
+                continue
+            if _claim_is_supported_by_facts(sentence, facts):
+                continue
+            unsupported_claims.append(sentence)
+
+        if not unsupported_claims:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        penalty = min(1.0, len(unsupported_claims) * 0.2)
+        return _CheckResult(
+            passed=False,
+            score=max(0.0, 1.0 - penalty),
+            issues=[f"unsupported skill claim: {claim}" for claim in unsupported_claims],
+        )
+
+    def _forced_connector_check(self, draft: str, facts: FactsDatabase) -> "_CheckResult":
+        """Flag causal bridge sentences that over-generalize from disconnected facts."""
+
+        cover_letter = _extract_cover_letter_body(draft) or draft
+        sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", cover_letter) if sentence.strip()]
+        if not sentences:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        bridge_phrases = (
+            r"\bthat experience taught me\b",
+            r"\bthis experience taught me\b",
+            r"\bthese experiences taught me\b",
+            r"\bthat taught me\b",
+            r"\bthis taught me\b",
+            r"\bthese experiences gave me\b",
+            r"\bthat experience gave me\b",
+            r"\bthis gave me\b",
+            r"\bwhich taught me\b",
+            r"\bwhich strengthened my\b",
+            r"\bthis strengthened my\b",
+            r"\bthese experiences strengthened my\b",
+            r"\bin turn\b",
+            r"\bas a result\b",
+            r"\btherefore\b",
+        )
+        abstract_bridge_terms = (
+            "communication",
+            "teamwork",
+            "collaboration",
+            "problem solving",
+            "precision",
+            "accuracy",
+            "responsibility",
+            "ownership",
+            "work ethic",
+            "cross functional",
+            "cross-functional",
+            "practical",
+        )
+
+        unsupported_bridge_sentences: list[str] = []
+        for sentence in sentences:
+            lower = sentence.lower()
+            if not any(re.search(pattern, lower) for pattern in bridge_phrases):
+                continue
+            if not any(term in lower for term in abstract_bridge_terms):
+                continue
+            if _claim_is_supported_by_facts(sentence, facts):
+                continue
+            unsupported_bridge_sentences.append(sentence)
+
+        if not unsupported_bridge_sentences:
+            return _CheckResult(passed=True, score=1.0, issues=[])
+
+        penalty = min(1.0, len(unsupported_bridge_sentences) * 0.25)
+        return _CheckResult(
+            passed=False,
+            score=max(0.0, 1.0 - penalty),
+            issues=[f"forced connector: {sentence}" for sentence in unsupported_bridge_sentences],
         )
 
     def _cover_letter_length_check(self, draft: str, job_ad: JobAd) -> "_CheckResult":
@@ -602,6 +706,13 @@ def _claim_is_supported_by_facts(claim: str, facts: FactsDatabase, additional_te
             return True
 
     return False
+
+
+def _looks_like_skill_claim(sentence: str) -> bool:
+    """Detect sentences that explicitly assert a skill, tool, or experience claim."""
+
+    lower = sentence.lower()
+    return any(pattern.search(lower) for pattern in _SKILL_CLAIM_PATTERNS)
 
 
 def _normalize_text(text: str) -> str:

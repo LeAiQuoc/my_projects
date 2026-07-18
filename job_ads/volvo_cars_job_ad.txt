@@ -1,0 +1,74 @@
+
+Data Engineer
+Can you engineer a brighter tomorrow?
+It’s crystal clear: the actions we take in the next few years will significantly impact our future. At Volvo Cars, we embrace change. We’re committed to transforming the automotive industry and leading in electrification. For this, we’re seeking out more creative minds to shape that future. Don’t miss this opportunity to create your tomorrow.
+
+
+Let's introduce ourselves
+Software engineering is an increasingly important area in the automotive industry. Volvo Cars is bringing more of the software development in-house to better handle continuous integration and the complex interactions between different functions. Our data vision at Volvo Cars is powering innovation and every decision with trusted data and manage obstacles through innovative, robust designs and design for change.
+
+ 
+
+You can now join the Engineering Data Hub. Our ART mission is to provide trusted data and insights to understand product & process performance and customer behavior, enabling improved efficiency and better customer experience.
+
+ 
+
+We are the Data Product Engineering team, working to accelerate and streamline the use of data, analytics, and AI. The team innovates and collaborates to provide crucial contextual data and vital APIs to both internal and external consumers. Within the Volvo Cars Engineering organization, we help people (and AI systems) orient themselves in a complex product landscape by providing the right context through well-structured data. As the product grows in complexity, so does the data—our job is to make that complexity usable by transforming it into reliable, discoverable datasets and APIs that power analytics, applications, and AI.
+
+What you'll do
+As a Software Developer, you will build a data-driven application that transforms complex product information into reliable, discoverable datasets and APIs. You will design and operate batch pipelines, real-time querying systems, or a combination of both—depending on the use case and business needs.
+
+ 
+
+A fundamental challenge for us is combining large-scale data with low latency. We operate on massive datasets, while ensuring that consumers can access relevant subsets quickly and efficiently. We are in a crucial phase of the project, designing the next generation of our product. You will directly contribute to the design and development of core capabilities. You will also work with a composable data stack, selecting the right tools and patterns to deliver scalable, maintainable, and secure applications.
+
+ 
+
+Some tools we use today
+
+
+•    Languages: Python, Go, SQL
+•    Query engines: Spark, Postgres, DuckDB
+•    Events: Kafka
+•    Cloud infrastructure: Azure, Kubernetes
+•    DevOps: GitHub Actions, FluxCD, Helm, Prometheus, Grafana, Vault
+•    PaaS: Databricks, Snowflake
+
+What you'll bring
+We are looking for a proactive individual with a solution-oriented mindset who is proficient in the following areas:
+
+
+•    Software development: Git-first mindset and a proven track record in languages such as Python, Go, Rust, or similar
+•    Cloud: Azure and Kubernetes
+•    Storage: Open table formats (Delta, Iceberg, Hudi)
+•    Cloud-native application development
+•    Query engines: Postgres, DuckDB, SparkSQL
+
+
+We value a strong software engineering profile and the mindset that data engineering is fundamentally a software discipline. You are familiar with DevOps practices, as well as test- and specification-driven development. You have a proven track record of building, deploying, and maintaining production systems.
+
+ 
+
+In addition, experience in any of the following is highly valued:
+•    Automotive or complex systems: Experience working with data from complex domains such as automotive, robotics, IoT, aerospace, or similar
+•    Large-scale data processing: Spark and SQL
+•    Developing data pipelines: Building reliable and resilient processing systems
+
+ 
+
+Volvo Cars. For Life.
+For nearly a century, Volvo Cars has empowered people to move freely in a personal, sustainable and safe way. Today, we are driving bold advancements in electrification, sustainability and automotive safety. To realise our ambitious vision, we are seeking innovative minds who are ready to tackle the challenges of tomorrow – today.
+
+In our company, we believe extraordinary things are achieved by ordinary people with the drive to make a difference.
+
+Ready to take the next step?
+Submit your CV in English and tell us why you’re the ideal candidate for a new role at Volvo Cars. Applications must be received no later than 9 Aug, 2026. We are prioritising direct applications to ensure a fair and efficient application process.
+
+Note: We will read applications after vacation, please expect a delay in communication due to this reason. For questions regarding the recruitment process, please contact divyashri.prakash.kartik@volvocars.com. For specific questions about the position, please reach out to herman.johnsson@volvocars.com
+
+As part of the recruitment process, the final candidates might undergo a background check.
+
+We welcome your application!
+
+Gothenburg, SE, 40531
+Job requisition ID:  79193

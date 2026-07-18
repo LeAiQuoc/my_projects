@@ -144,7 +144,9 @@ async def test_cover_letter_generator_builds_grounded_prompt_and_returns_text() 
     assert "Avoid binary contrast templates" in user_prompt
     assert "Exactly 5 paragraphs plus greeting line" in user_prompt
     assert "Greeting line must be exactly: Dear Hiring Team," in user_prompt
-    assert "non-technical work fact" in user_prompt
+    assert "Structure variant:" in user_prompt
+    assert "Paragraph plan:" in user_prompt
+    assert "Follow the paragraph plan exactly" in user_prompt
     assert "Soft-skill facts to use explicitly" in user_prompt
     assert "Technical differentiators available in selected facts" in user_prompt
     assert "id=exp-2" in user_prompt

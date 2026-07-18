@@ -273,6 +273,36 @@ async def test_orchestrator_routes_voice_mode_by_document_type(monkeypatch: pyte
         ]
     )
 
+
+    @pytest.mark.asyncio
+    async def test_orchestrator_dedupes_repeated_cover_letter_sentences() -> None:
+        evaluator = _EvaluatorSequence(
+            [
+                EvaluationResult(
+                    passed=True,
+                    issues=[],
+                    per_check_scores={"coverage": 1.0},
+                )
+            ]
+        )
+
+        duplicated_cover = (
+            "Jag arbetar praktiskt med Python och Git. "
+            "Jag arbetar praktiskt med Python och Git. "
+            "Jag bidrar med tydlig kommunikation i team."
+        )
+
+        orchestrator = GenerationOrchestrator(
+            cv_generator=_StaticGenerator("cv draft"),
+            cover_letter_generator=_StaticGenerator(duplicated_cover),
+            evaluator=evaluator,
+            max_retries=1,
+            enable_humanize_pass=False,
+        )
+
+        result = await orchestrator.run(_facts(), _job(), _style())
+
+        assert result.cover_letter_draft.count("Jag arbetar praktiskt med Python och Git") == 1
     orchestrator = GenerationOrchestrator(
         cv_generator=_StaticGenerator("cv draft with python"),
         cover_letter_generator=_StaticGenerator("cover draft with python"),

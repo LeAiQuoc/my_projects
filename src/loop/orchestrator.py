@@ -81,6 +81,7 @@ class GenerationOrchestrator:
             cover_letter_draft = sanitize_draft(cover_letter_raw)
             cover_letter_draft = _ensure_cover_letter_differentiators(cover_letter_draft, facts)
             cover_letter_draft = _strip_driver_license_for_software_roles(cover_letter_draft, job_ad)
+            cover_letter_draft = _dedupe_repeated_sentences(cover_letter_draft)
             cover_letter_draft = _cap_cover_letter_length(cover_letter_draft)
             combined_draft = f"{cv_draft}\n\n{cover_letter_draft}".strip()
 
@@ -154,6 +155,7 @@ class GenerationOrchestrator:
                     cover_letter_draft = _apply_pre_humanize_cleanup(cover_rewritten)
                     cover_letter_draft = _ensure_cover_letter_differentiators(cover_letter_draft, facts)
                     cover_letter_draft = _strip_driver_license_for_software_roles(cover_letter_draft, job_ad)
+                    cover_letter_draft = _dedupe_repeated_sentences(cover_letter_draft)
                     cover_letter_draft = _cap_cover_letter_length(cover_letter_draft)
 
                 combined_rewritten = f"{cv_draft}\n\n{cover_letter_draft}".strip()
@@ -321,6 +323,39 @@ def _apply_pre_humanize_cleanup(text: str) -> str:
     """Run deterministic cleanup stage used before and after voice rewriting."""
 
     return apply_deterministic_humanize_cleanup(sanitize_draft(text))
+
+
+def _dedupe_repeated_sentences(text: str) -> str:
+    """Remove repeated sentences while preserving the first occurrence of each."""
+
+    paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", text.strip()) if paragraph.strip()]
+    if not paragraphs:
+        return text.strip()
+
+    seen: set[str] = set()
+    cleaned_paragraphs: list[str] = []
+    for paragraph in paragraphs:
+        sentences = [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", paragraph) if segment.strip()]
+        kept_sentences: list[str] = []
+        for sentence in sentences:
+            normalized = _normalize_sentence(sentence)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            kept_sentences.append(sentence)
+        if kept_sentences:
+            cleaned_paragraphs.append(" ".join(kept_sentences))
+
+    return "\n\n".join(cleaned_paragraphs).strip()
+
+
+def _normalize_sentence(sentence: str) -> str:
+    """Normalize a sentence for duplicate detection."""
+
+    lowered = sentence.lower().strip()
+    lowered = re.sub(r"^[\s\W]+|[\s\W]+$", "", lowered)
+    lowered = re.sub(r"\s+", " ", lowered)
+    return lowered
 
 
 def _ensure_cover_letter_differentiators(text: str, facts: FactsDatabase) -> str:
