@@ -1,8 +1,8 @@
 # CV and Cover Letter Agent
 
-A job-application generator built around **harness and loop engineering**, not just prompting: it grounds every claim in a structured facts database, runs generation through a bounded generate-evaluate-retry loop, and produces a separate scoring artifact for every cover letter it writes — so the system's own reliability checks are inspectable, not just asserted.
+A job-application generator built around **harness and loop engineering**, not just prompting: it grounds every claim in a structured facts database, runs generation through a bounded generate-evaluate-retry loop, and produces a separate scoring artifact for every cover letter it writes. So the system's own reliability checks are inspectable, not just asserted.
 
-A recruiter can clone the repo, add a DeepSeek API key, and run the included sanitized demo end to end in a few minutes (see [First-time setup](#first-time-setup)).
+A user can clone the repo, add a DeepSeek API key, and run the included sanitized demo end to end in a few minutes (see [First-time setup](#first-time-setup)).
 
 ## Why this was harder than "call an LLM with a prompt"
 
