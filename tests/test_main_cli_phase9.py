@@ -8,7 +8,7 @@ from src.evaluation.evaluator import EvaluationResult
 from src.facts.facts_schema import FactsDatabase, FactsEntry
 from src.job_ads.schema import JobAd
 from src.loop.orchestrator import OrchestrationResult
-from src.output_rendering import cover_letter_title
+from src.output_rendering import cover_letter_title, extract_profile_identity
 from src.main import cli, _read_text_source
 from src.pipeline.batch import RankedBatchResult
 from src.style.style_profile import StyleProfile
@@ -42,6 +42,19 @@ def _style_profile() -> StyleProfile:
 def _facts_db() -> FactsDatabase:
     return FactsDatabase.from_entries(
         [
+            FactsEntry(
+                id="profile-identity",
+                category="skill",
+                title="Profile Identity",
+                description=(
+                    "Name: Alex Ren\n"
+                    "Address: Sample Street 1\n"
+                    "Phone: 070-000 00 00\n"
+                    "Email: alex@example.com\n"
+                    "LinkedIn: linkedin.com/in/alex-ren"
+                ),
+                technologies=["profile"],
+            ),
             FactsEntry(
                 id="fact-1",
                 category="experience",
@@ -111,7 +124,12 @@ def test_generate_cv_command_writes_to_outputs_cv(tmp_path: Path, monkeypatch) -
     async def _fake_run_generate_cv(job_ad_source: str, facts_file: Path, style_file: Path, logger):
         _ = facts_file, style_file, logger
         assert job_ad_source == str(job_ad_file)
-        return _job_ad(), "job-ad.txt", "# CV\n- Built async ingestion pipeline."
+        return (
+            _job_ad(),
+            "job-ad.txt",
+            "# Generated CV\n\n- Source: job-ad.txt\n- Company: Acme\n- Role: Software Engineer\n\n# [Namn]\n[Adress] | [Telefon] | [E-post] | [LinkedIn]\n\n## Profil\nKort profil.\n\n- Built async ingestion pipeline.",
+            _facts_db(),
+        )
 
     monkeypatch.setattr("src.main._run_generate_cv", _fake_run_generate_cv)
 
@@ -130,9 +148,9 @@ def test_generate_cv_command_writes_to_outputs_cv(tmp_path: Path, monkeypatch) -
         )
 
         assert result.exit_code == 0, result.output
-        output_file = Path("outputs_cv") / "cv_acme.md"
+        output_file = Path("outputs_cv") / "cv_acme.pdf"
         assert output_file.exists()
-        assert "# Generated CV" in output_file.read_text(encoding="utf-8")
+        assert output_file.read_bytes().startswith(b"%PDF")
 
 
 def test_generate_cl_command_writes_pdf_to_outputs_cl(tmp_path: Path, monkeypatch) -> None:
@@ -180,6 +198,13 @@ def test_cover_letter_title_is_language_aware() -> None:
     assert cover_letter_title("sv") == "Personligt brev"
     assert cover_letter_title("sv-SE") == "Personligt brev"
     assert cover_letter_title("en") == "Cover letter"
+
+
+def test_extract_profile_identity_reads_invented_contact_block() -> None:
+    identity = extract_profile_identity(_facts_db())
+
+    assert identity["name"] == "Alex Ren"
+    assert identity["email"] == "alex@example.com"
 
 
 def test_generate_command_renders_detector_block(tmp_path: Path, monkeypatch) -> None:

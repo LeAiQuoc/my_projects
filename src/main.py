@@ -25,7 +25,7 @@ from src.job_ads.company_research import research_company_context
 from src.job_ads.parser import JobAdParser
 from src.job_ads.schema import JobAd
 from src.loop.orchestrator import GenerationOrchestrator, OrchestrationResult
-from src.output_rendering import company_output_stem, company_slugify, render_cv_markdown, write_cover_letter_pdf
+from src.output_rendering import company_output_stem, company_slugify, write_cover_letter_pdf, write_cv_pdf
 from src.pipeline.batch import BatchPipeline, RankedBatchResult
 from src.style.style_extractor import StyleExtractor
 from src.style.style_profile import StyleProfile
@@ -369,7 +369,7 @@ async def _run_generate_cv(
     facts_file: Path,
     style_file: Path,
     logger: logging.Logger,
-) -> tuple[JobAd, str, str]:
+) -> tuple[JobAd, str, str, FactsDatabase]:
     """Execute standalone CV generation asynchronously."""
 
     job_ad, source_label, facts, style_profile = await _load_generation_context(
@@ -381,7 +381,7 @@ async def _run_generate_cv(
 
     logger.info("Generating standalone CV")
     cv_text = await CVGenerator().generate(facts, job_ad, style_profile)
-    return job_ad, source_label, cv_text
+    return job_ad, source_label, cv_text, facts
 
 
 async def _run_generate_cover_letter(
@@ -486,13 +486,13 @@ def _echo_or_write(markdown: str, output: Path | None) -> None:
     click.echo(f"Wrote output to {output}")
 
 
-def _resolve_markdown_output(output: Path | None, company_name: str, folder: str) -> Path:
-    """Resolve a default markdown output path for a company name."""
+def _resolve_cv_output(output: Path | None, company_name: str, folder: str) -> Path:
+    """Resolve a default PDF output path for a company name."""
 
     if output is not None:
-        return output if output.suffix else output.with_suffix(".md")
+        return output if output.suffix.lower() == ".pdf" else output.with_suffix(".pdf")
 
-    return Path(folder) / f"{company_output_stem('cv', company_name)}.md"
+    return Path(folder) / f"{company_output_stem('cv', company_name)}.pdf"
 
 
 def _resolve_pdf_output(output: Path | None, company_name: str, folder: str) -> Path:
@@ -645,21 +645,22 @@ def generate(job_ad_source: str, facts_file: Path, style_file: Path, output: Pat
     default=lambda: get_env_path("STYLE_PROFILE_FILE", DEFAULT_STYLE_PROFILE_FILE),
     show_default=True,
 )
-@click.option("--output", type=click.Path(path_type=Path), default=None, help="Write the markdown CV to a file.")
+@click.option("--output", type=click.Path(path_type=Path), default=None, help="Write the PDF CV to a file.")
 def generate_cv(job_ad_source: str, facts_file: Path, style_file: Path, output: Path | None) -> None:
     """Generate a standalone CV from a job ad source."""
 
     logger = logging.getLogger("cv_coverletter_agent")
     try:
-        job_ad, source_label, cv_text = asyncio.run(
+        job_ad, source_label, cv_text, facts = asyncio.run(
             _run_generate_cv(job_ad_source, facts_file, style_file, logger)
         )
     except (click.ClickException, FileNotFoundError, ValueError, RuntimeError) as exc:
         raise click.ClickException(str(exc)) from exc
 
-    markdown = render_cv_markdown(source_label, job_ad, cv_text)
-    resolved_output = _resolve_markdown_output(output, job_ad.company_name, "outputs_cv")
-    _echo_or_write(markdown, resolved_output)
+    _ = source_label
+    resolved_output = _resolve_cv_output(output, job_ad.company_name, "outputs_cv")
+    write_cv_pdf(resolved_output, job_ad, cv_text, facts)
+    click.echo(f"Wrote output to {resolved_output}")
 
 
 @cli.command(name="generate-cl")

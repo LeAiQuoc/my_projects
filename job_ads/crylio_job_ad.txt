@@ -1,8 +1,8 @@
 Arbetsbeskrivning
 
-Om Lysio Research
+Om Crylio Research
 
-Vi på Lysio Research arbetar med undersökningar och utredningar som leder till samhällsutveckling.
+Vi på Crylio Research arbetar med undersökningar och utredningar som leder till samhällsutveckling.
 
 Bland våra kunder finns de flesta kommuner i landet och flera regioner och myndigheter.
 
@@ -30,13 +30,13 @@ Det kommer också förekomma arbete i kundprojekt, främst databearbetning ("dat
 
 PowerPoint/Excel eller webbaserade dashboards.
 
-Lysio Research vill vara med och bidra till samhällsutveckling genom att använda och främja fri programvara.
+Crylio Research vill vara med och bidra till samhällsutveckling genom att använda och främja fri programvara.
 
 Därför använder vi oss främst av open source-mjukvara i vår utvecklingsstack.
 
 Du kommer, vid intresse, ha möjlighet och uppmuntras att själv bidra till den mjukvara och de bibliotek vi använder.
 
-På Lysio tror vi på att de anställda skall kunna växa inom organisationen, därför innebär tjänsten stor möjlighet att utvecklas och på sikt ta mer eget ansvar för automatiserings- och utvecklingsprojekt.
+På Crylio tror vi på att de anställda skall kunna växa inom organisationen, därför innebär tjänsten stor möjlighet att utvecklas och på sikt ta mer eget ansvar för automatiserings- och utvecklingsprojekt.
 
 Vem är du?
 

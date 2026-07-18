@@ -165,6 +165,8 @@ class CVGenerator:
         }
 
         for entry in facts_db.entries:
+            if entry.id.startswith("profile-"):
+                continue
             score = 0.0
             entry_techs = {tech.strip().lower() for tech in entry.technologies if tech.strip()}
             entry_title_lower = entry.title.lower()

@@ -1,7 +1,13 @@
 entries:
-- id: experience-plejd-internship-software-ai-engineering
+- id: profile-identity
+  category: skill
+  title: Profile Identity
+  description: "Name: Alex Ren\nAddress: Lergatan 12, 412 50 Goteborg\nPhone: 070-000 00 00\nEmail: alex.ren@example.com\nLinkedIn: linkedin.com/in/alex-ren"
+  technologies:
+  - profile
+- id: experience-played-internship-software-ai-engineering
   category: experience
-  title: AI Engineering Intern (LIA) — Plejd AB
+  title: AI Engineering Intern (LIA) - Played Systems
   description: Team-led development of an AI-powered GitLab repository analyzer that
     auto-generates README files and API contract documentation across multiple microservice
     repositories. Designed a RAG pipeline using MongoDB Atlas for vector storage, the Gemini
@@ -19,7 +25,7 @@ entries:
   - Gemini API
   - BGE embeddings
   - Git/gitlab
-  evidence_url: https://github.com/LeAiQuoc/my_projects
+  evidence_url: https://github.com/example/my_projects
 - id: project-ai-clip-highlighter
   category: project
   title: AI Clip Highlighter
@@ -44,13 +50,13 @@ entries:
   - Broadlink IR
   - Raspberry Pi 5
   - Home Assistant
-- id: experience-thatsneatly-founder-tech-lead
+- id: experience-tidycart-founder-tech-lead
   category: experience
-  title: Founder & Tech Lead — Thatsneatly e-commerce venture
-  description: Pitched a business plan and financial model to Almi, secured startup
-    capital (200,000 SEK), managed international supply chain logistics, set up banking and tax
-    structures, and engineered the digital storefront pipeline with landing page
-    optimization, SEO analytics, and target-audience tracking.
+  title: Founder and Tech Lead - TidyCart commerce venture
+  description: Pitched a business plan and financial model to Northcap Growth,
+    secured startup capital (200,000 SEK), managed international supply chain logistics,
+    set up banking and tax structures, and engineered the digital storefront pipeline
+    with landing page optimization, SEO analytics, and target-audience tracking.
   technologies:
   - Business Planning
   - Supply Chain
@@ -58,9 +64,9 @@ entries:
   - Analytics
   - Banking Setup
   - Web Development
-- id: education-teknikhogskolan-ai-software-development
+- id: education-northbridge-ai-software-development
   category: education
-  title: Teknikhogskolan Higher Vocational Education Diploma in AI and Software Development
+  title: Northbridge Institute Higher Vocational Education Diploma in AI and Software Development
   description: Completed a Higher Vocational Education Diploma in AI and Software
     Development (415 YH credits) with a practical focus on Python, backend development,
     and applied AI workflows.
@@ -68,17 +74,17 @@ entries:
   - Python
   - AI
   - Software Development
-- id: education-chalmers-mechanical-engineering
+- id: education-westport-mechanical-engineering
   category: education
-  title: Chalmers University of Technology BSc Mechanical Engineering
+  title: Westport Technical University BSc Mechanical Engineering
   description: Completed 90 of 180 credits in mechanical engineering before changing
     direction toward software and AI.
   technologies:
   - Mechanical Engineering
   - Mathematics
-- id: experience-dagab-forklift-operator
+- id: experience-northport-forklift-operator
   category: experience
-  title: Forklift Operator at Dagab AB via Jobandtalent
+  title: Forklift Operator at Northport Logistics via ShiftTalent
   description: Worked in a warehouse environment handling picking and packing work
     alongside forklift operation at a fast pace; this work developed accuracy and
     the ability to work independently under pressure, and I am comfortable working
@@ -88,17 +94,17 @@ entries:
   - Forklift B
   - Warehouse Operations
   - Picking and Packing
-- id: experience-mings-palace-waiter
+- id: experience-harbor-palace-waiter
   category: experience
-  title: Waiter at Ming's Palace
+  title: Waiter at Harbor Palace
   description: Worked as a waiter and built service experience in a fast-moving customer-facing
     environment.
   technologies:
   - Customer Service
   - Teamwork
-- id: experience-cnss-solutions-it-administrator
+- id: experience-corelane-solutions-it-administrator
   category: experience
-  title: IT Administrator at CNSS Solutions
+  title: IT Administrator at Corelane Solutions
   description: Worked as an IT administrator handling system maintenance and technical
     support, including practical troubleshooting in day-to-day technical operations.
   technologies:

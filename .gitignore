@@ -9,3 +9,7 @@ humanize-text-skill-main/
 *.pyd
 coverage.xml
 htmlcov/
+outputs/
+outputs_cl/
+outputs_cv/
+data/facts_personal_.yaml
