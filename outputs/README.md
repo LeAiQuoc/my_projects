@@ -1,6 +1,10 @@
 # Outputs
 
-This folder is where generated markdown files can be saved.
+This folder keeps the legacy combined application packs.
+
+New separated outputs are written to:
+- `outputs_cv/` for standalone CV markdown
+- `outputs_cl/` for standalone cover-letter PDFs
 
 Examples:
 - `python -m src.main generate job_ads/job_ad_1_backend.txt --output outputs/job_ad_1_backend.md`

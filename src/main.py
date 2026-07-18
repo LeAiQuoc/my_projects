@@ -25,6 +25,7 @@ from src.job_ads.company_research import research_company_context
 from src.job_ads.parser import JobAdParser
 from src.job_ads.schema import JobAd
 from src.loop.orchestrator import GenerationOrchestrator, OrchestrationResult
+from src.output_rendering import company_output_stem, render_cv_markdown, write_cover_letter_pdf
 from src.pipeline.batch import BatchPipeline, RankedBatchResult
 from src.style.style_extractor import StyleExtractor
 from src.style.style_profile import StyleProfile
@@ -69,6 +70,10 @@ def _read_text_source(source: str) -> tuple[str, str | None]:
     path = Path(source)
     if path.exists() and path.is_file():
         return path.read_text(encoding="utf-8"), str(path)
+
+    job_ads_path = Path("job_ads") / source
+    if job_ads_path.exists() and job_ads_path.is_file():
+        return job_ads_path.read_text(encoding="utf-8"), str(job_ads_path)
 
     parsed = urlparse(source)
     if parsed.scheme in {"http", "https"}:
@@ -308,13 +313,13 @@ def _create_orchestrator(logger: logging.Logger | None = None) -> GenerationOrch
     )
 
 
-async def _run_generate(
+async def _load_generation_context(
     job_ad_source: str,
     facts_file: Path,
     style_file: Path,
     logger: logging.Logger,
-) -> tuple[JobAd, OrchestrationResult]:
-    """Execute the generate command asynchronously."""
+) -> tuple[JobAd, str, FactsDatabase, StyleProfile]:
+    """Load shared generation inputs and enrich the parsed job ad."""
 
     logger.info("Loading facts database from %s", facts_file)
     facts = load_facts_database(facts_file)
@@ -340,10 +345,64 @@ async def _run_generate(
             }
         )
 
+    return job_ad, source_label, facts, style_profile
+
+
+async def _run_generate(
+    job_ad_source: str,
+    facts_file: Path,
+    style_file: Path,
+    logger: logging.Logger,
+) -> tuple[JobAd, OrchestrationResult]:
+    """Execute the generate command asynchronously."""
+
+    job_ad, _, facts, style_profile = await _load_generation_context(job_ad_source, facts_file, style_file, logger)
+
     logger.info("Running generation loop")
     orchestrator = _create_orchestrator(logger)
     result = await orchestrator.run(facts, job_ad, style_profile)
     return job_ad, result
+
+
+async def _run_generate_cv(
+    job_ad_source: str,
+    facts_file: Path,
+    style_file: Path,
+    logger: logging.Logger,
+) -> tuple[JobAd, str, str]:
+    """Execute standalone CV generation asynchronously."""
+
+    job_ad, source_label, facts, style_profile = await _load_generation_context(
+        job_ad_source,
+        facts_file,
+        style_file,
+        logger,
+    )
+
+    logger.info("Generating standalone CV")
+    cv_text = await CVGenerator().generate(facts, job_ad, style_profile)
+    return job_ad, source_label, cv_text
+
+
+async def _run_generate_cover_letter(
+    job_ad_source: str,
+    facts_file: Path,
+    style_file: Path,
+    logger: logging.Logger,
+) -> tuple[JobAd, str, str]:
+    """Execute standalone cover-letter generation asynchronously."""
+
+    job_ad, source_label, facts, style_profile = await _load_generation_context(
+        job_ad_source,
+        facts_file,
+        style_file,
+        logger,
+    )
+
+    logger.info("Generating standalone cover letter")
+    cover_letter = await CoverLetterGenerator().generate(facts, job_ad, style_profile)
+    cover_letter = _finalize_cover_letter_for_rendering(cover_letter, job_ad)
+    return job_ad, source_label, cover_letter
 
 
 async def _run_batch(
@@ -420,6 +479,24 @@ def _echo_or_write(markdown: str, output: Path | None) -> None:
     click.echo(f"Wrote output to {output}")
 
 
+def _resolve_markdown_output(output: Path | None, company_name: str, folder: str) -> Path:
+    """Resolve a default markdown output path for a company name."""
+
+    if output is not None:
+        return output if output.suffix else output.with_suffix(".md")
+
+    return Path(folder) / f"{company_output_stem('cv', company_name)}.md"
+
+
+def _resolve_pdf_output(output: Path | None, company_name: str, folder: str) -> Path:
+    """Resolve a default PDF output path for a company name."""
+
+    if output is not None:
+        return output if output.suffix.lower() == ".pdf" else output.with_suffix(".pdf")
+
+    return Path(folder) / f"{company_output_stem('cover_letter', company_name)}.pdf"
+
+
 @click.group()
 def cli() -> None:
     """Root CLI group."""
@@ -486,6 +563,68 @@ def generate(job_ad_source: str, facts_file: Path, style_file: Path, output: Pat
         detector_executed_at=detector_executed_at,
     )
     _echo_or_write(markdown, output)
+
+
+@cli.command(name="generate-cv")
+@click.argument("job_ad_source", type=str)
+@click.option(
+    "--facts-file",
+    type=click.Path(path_type=Path),
+    default=lambda: get_env_path("FACTS_FILE", DEFAULT_FACTS_FILE),
+    show_default=True,
+)
+@click.option(
+    "--style-file",
+    type=click.Path(path_type=Path),
+    default=lambda: get_env_path("STYLE_PROFILE_FILE", DEFAULT_STYLE_PROFILE_FILE),
+    show_default=True,
+)
+@click.option("--output", type=click.Path(path_type=Path), default=None, help="Write the markdown CV to a file.")
+def generate_cv(job_ad_source: str, facts_file: Path, style_file: Path, output: Path | None) -> None:
+    """Generate a standalone CV from a job ad source."""
+
+    logger = logging.getLogger("cv_coverletter_agent")
+    try:
+        job_ad, source_label, cv_text = asyncio.run(
+            _run_generate_cv(job_ad_source, facts_file, style_file, logger)
+        )
+    except (click.ClickException, FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    markdown = render_cv_markdown(source_label, job_ad, cv_text)
+    resolved_output = _resolve_markdown_output(output, job_ad.company_name, "outputs_cv")
+    _echo_or_write(markdown, resolved_output)
+
+
+@cli.command(name="generate-cl")
+@click.argument("job_ad_source", type=str)
+@click.option(
+    "--facts-file",
+    type=click.Path(path_type=Path),
+    default=lambda: get_env_path("FACTS_FILE", DEFAULT_FACTS_FILE),
+    show_default=True,
+)
+@click.option(
+    "--style-file",
+    type=click.Path(path_type=Path),
+    default=lambda: get_env_path("STYLE_PROFILE_FILE", DEFAULT_STYLE_PROFILE_FILE),
+    show_default=True,
+)
+@click.option("--output", type=click.Path(path_type=Path), default=None, help="Write the PDF cover letter to a file.")
+def generate_cl(job_ad_source: str, facts_file: Path, style_file: Path, output: Path | None) -> None:
+    """Generate a standalone cover letter as PDF from a job ad source."""
+
+    logger = logging.getLogger("cv_coverletter_agent")
+    try:
+        job_ad, source_label, cover_letter = asyncio.run(
+            _run_generate_cover_letter(job_ad_source, facts_file, style_file, logger)
+        )
+    except (click.ClickException, FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    resolved_output = _resolve_pdf_output(output, job_ad.company_name, "outputs_cl")
+    write_cover_letter_pdf(resolved_output, source_label, job_ad, cover_letter)
+    click.echo(f"Wrote output to {resolved_output}")
 
 
 @cli.command(name="batch")

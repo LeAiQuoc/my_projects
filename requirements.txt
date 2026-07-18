@@ -3,6 +3,7 @@ pydantic>=2.7.0
 pyyaml>=6.0.1
 python-dotenv>=1.0.1
 click>=8.1.7
+reportlab>=4.0.0
 pytest>=8.2.0
 pytest-asyncio>=0.23.7
 pytest-mock>=3.14.0

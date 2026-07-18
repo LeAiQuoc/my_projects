@@ -8,6 +8,7 @@ from src.evaluation.evaluator import EvaluationResult
 from src.facts.facts_schema import FactsDatabase, FactsEntry
 from src.job_ads.schema import JobAd
 from src.loop.orchestrator import OrchestrationResult
+from src.output_rendering import cover_letter_title
 from src.main import cli, _read_text_source
 from src.pipeline.batch import RankedBatchResult
 from src.style.style_profile import StyleProfile
@@ -100,6 +101,74 @@ def test_generate_command_outputs_markdown(tmp_path: Path, monkeypatch) -> None:
     assert "# Generated Application Pack" in result.output
     assert "## CV" in result.output
     assert "## Cover Letter" in result.output
+
+
+def test_generate_cv_command_writes_to_outputs_cv(tmp_path: Path, monkeypatch) -> None:
+    job_ad_file = tmp_path / "job-ad.txt"
+    job_ad_file.write_text("Company: Acme\nRole: Engineer", encoding="utf-8")
+
+    async def _fake_run_generate_cv(job_ad_source: str, facts_file: Path, style_file: Path, logger):
+        _ = facts_file, style_file, logger
+        assert job_ad_source == str(job_ad_file)
+        return _job_ad(), "job-ad.txt", "# CV\n- Built async ingestion pipeline."
+
+    monkeypatch.setattr("src.main._run_generate_cv", _fake_run_generate_cv)
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(
+            cli,
+            [
+                "generate-cv",
+                str(job_ad_file),
+                "--facts-file",
+                str(tmp_path / "facts.yaml"),
+                "--style-file",
+                str(tmp_path / "style.json"),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        output_file = Path("outputs_cv") / "cv_acme.md"
+        assert output_file.exists()
+        assert "# Generated CV" in output_file.read_text(encoding="utf-8")
+
+
+def test_generate_cl_command_writes_pdf_to_outputs_cl(tmp_path: Path, monkeypatch) -> None:
+    job_ad_file = tmp_path / "job-ad.txt"
+    job_ad_file.write_text("Company: Acme\nRole: Engineer", encoding="utf-8")
+
+    async def _fake_run_generate_cover_letter(job_ad_source: str, facts_file: Path, style_file: Path, logger):
+        _ = facts_file, style_file, logger
+        assert job_ad_source == str(job_ad_file)
+        return _job_ad(), "job-ad.txt", "Hej rekryteringsteamet.\n\nMed vänliga hälsningar, John"
+
+    monkeypatch.setattr("src.main._run_generate_cover_letter", _fake_run_generate_cover_letter)
+
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(
+            cli,
+            [
+                "generate-cl",
+                str(job_ad_file),
+                "--facts-file",
+                str(tmp_path / "facts.yaml"),
+                "--style-file",
+                str(tmp_path / "style.json"),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        output_file = Path("outputs_cl") / "cover_letter_acme.pdf"
+        assert output_file.exists()
+        assert output_file.read_bytes().startswith(b"%PDF")
+
+
+def test_cover_letter_title_is_language_aware() -> None:
+    assert cover_letter_title("sv") == "Personligt brev"
+    assert cover_letter_title("sv-SE") == "Personligt brev"
+    assert cover_letter_title("en") == "Cover letter"
 
 
 def test_generate_command_renders_detector_block(tmp_path: Path, monkeypatch) -> None:
