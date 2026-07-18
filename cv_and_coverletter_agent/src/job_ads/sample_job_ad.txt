@@ -1,0 +1,2 @@
+Sample job ad text goes here.
+Replace this with a real posting before testing the parser against Deepseek.

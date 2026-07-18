@@ -1,0 +1,22 @@
+{
+  "tone_description": "reflective, practical and detailed",
+  "avg_sentence_length": 20.386363636363637,
+  "sentence_length_variance": 72.37345041322314,
+  "characteristic_phrases": [
+    "about",
+    "also",
+    "clearly",
+    "comfortable",
+    "practical"
+  ],
+  "phrases_to_avoid": [
+    "i am passionate about"
+  ],
+  "structural_notes": "Observed a concise reflective opening style, detailed evidence blocks, and practical closing language across the corpus.",
+  "anchor_snippets": [
+    "Junior AI/software engineer specializing in Python, RAG pipelines, and LLM integration. I build practical systems, stay curious, and care about shipping useful tools with real-world impact.",
+    "Diplomas aside, I view myself as a perpetual apprentice. The velocity of AI engineering ensures that the moment you think you’ve 'arrived' as a developer, you’ve already fallen behind.",
+    "I apply this same restless curiosity to systems, code, and the human dynamics of the teams I build with.",
+    "I have experience in technical work from my role as an IT administrator at CNSS Solutions, where I handled system maintenance and provided technical support. As a forklift driver at Dagab AB, I have developed accuracy and the ability to work independently under pressure."
+  ]
+}

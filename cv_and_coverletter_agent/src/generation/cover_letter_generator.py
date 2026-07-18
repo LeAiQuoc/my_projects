@@ -1,0 +1,678 @@
+"""Cover letter generation template."""
+
+from __future__ import annotations
+
+import os
+import re
+import hashlib
+from typing import Any
+
+from openai import AsyncOpenAI, OpenAIError
+
+from src.facts.facts_schema import FactsEntry
+from src.facts.facts_schema import FactsDatabase
+from src.generation.cv_generator import CVGenerator
+from src.job_ads.schema import JobAd
+from src.style.style_profile import StyleProfile
+
+
+_LANGUAGE_NAMES = {
+    "sv": "svenska",
+    "en": "English",
+}
+
+
+_SOFT_SKILL_HINTS: tuple[str, ...] = (
+    "customer service",
+    "teamwork",
+    "technical support",
+    "independently",
+    "under pressure",
+    "accuracy",
+    "service",
+)
+
+_TECH_DIFFERENTIATOR_HINTS: tuple[str, ...] = (
+    "RAG",
+    "AI API integration",
+    "MCP",
+    "Prompt Engineering",
+    "embeddings",
+)
+
+_SOFT_SKILL_LANGUAGE_HINTS: tuple[str, ...] = (
+    "under pressure",
+    "independent",
+    "independently",
+    "accuracy",
+    "team",
+    "teamwork",
+    "collaboration",
+    "stakeholder",
+    "customer",
+    "service",
+    "communication",
+)
+
+
+class CoverLetterGenerator:
+    """Generate a cover letter grounded strictly in verified facts."""
+
+    def __init__(
+        self,
+        client: Any | None = None,
+        model: str | None = None,
+    ) -> None:
+        self.client = client
+        self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+    async def generate(
+        self,
+        facts: FactsDatabase,
+        job_ad: JobAd,
+        style_profile: StyleProfile,
+        correction_note: str | None = None,
+    ) -> str:
+        """Generate a grounded cover letter draft from verified inputs.
+
+        The correction note is appended on retries when the evaluator finds issues.
+        """
+
+        selected_facts = CVGenerator().select_relevant_facts(facts, job_ad, limit=6)
+        selected_facts = _ensure_soft_skill_coverage(selected_facts, facts)
+        selected_facts = _ensure_founder_coverage(selected_facts, facts, job_ad)
+        if not selected_facts:
+            raise ValueError("cannot generate cover letter without at least one facts entry")
+
+        system_prompt = (
+            "You are an expert cover-letter writer. "
+            "Use only the provided facts. "
+            "Do not invent achievements, metrics, companies, or experience details. "
+            "You may summarize patterns across multiple facts when the meaning stays faithful to those facts."
+        )
+        user_prompt = self._build_prompt(
+            selected_facts=selected_facts,
+            job_ad=job_ad,
+            style_profile=style_profile,
+            correction_note=correction_note,
+        )
+
+        client = self.client or _create_default_client()
+        temperature = _env_float("DEEPSEEK_COVER_TEMPERATURE", 0.82)
+        frequency_penalty = _env_float("DEEPSEEK_COVER_FREQUENCY_PENALTY", 0.15)
+        presence_penalty = _env_float("DEEPSEEK_COVER_PRESENCE_PENALTY", 0.35)
+
+        try:
+            response = await client.chat.completions.create(
+                model=self.model,
+                temperature=temperature,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+        except OpenAIError as exc:
+            raise RuntimeError(f"cover letter generation request failed: {exc}") from exc
+
+        content = _extract_response_text(response)
+        if not content:
+            raise RuntimeError("cover letter generation returned empty content")
+        content = _ensure_differentiator_mention(content, selected_facts)
+        content = _ensure_soft_skill_grounding(content, selected_facts)
+        content = _ground_company_and_founder_sentences(content, selected_facts, job_ad)
+        content = _cap_cover_letter_length(content, max_words=280)
+        content = _append_cover_letter_signoff(content, job_ad)
+        return _remove_low_value_license_line(content, job_ad)
+
+    def _build_prompt(
+        self,
+        selected_facts: list[FactsEntry],
+        job_ad: JobAd,
+        style_profile: StyleProfile,
+        correction_note: str | None,
+    ) -> str:
+        """Build a grounded prompt for writing a targeted cover letter."""
+
+        anchor_snippets = "\n\n".join(
+            f"- {snippet}" for snippet in style_profile.anchor_snippets[:4]
+        ) or "- No anchor snippets provided"
+        correction_section = (
+            f"\nRetry correction note:\n{correction_note.strip()}\n"
+            if correction_note and correction_note.strip()
+            else ""
+        )
+        facts_block = "\n".join(_format_fact(entry) for entry in selected_facts)
+        soft_skill_fact_ids = [entry.id for entry in selected_facts if _is_soft_skill_entry(entry)]
+        soft_skill_ids_text = ", ".join(soft_skill_fact_ids) if soft_skill_fact_ids else "N/A"
+        differentiator_terms = _collect_differentiator_terms(selected_facts)
+        differentiator_text = ", ".join(differentiator_terms) if differentiator_terms else "N/A"
+        focus_points = _extract_job_ad_focus_points(job_ad)
+        focus_points_text = ", ".join(focus_points) if focus_points else "N/A"
+        structure_variant = _select_cover_letter_structure(job_ad)
+        structure_label = structure_variant["label"]
+        paragraph_plan = structure_variant["paragraph_plan"]
+        language_code = job_ad.source_language.lower() if job_ad.source_language else "en"
+        language_name = _LANGUAGE_NAMES.get(language_code, "English")
+        company_context = job_ad.company_context.strip() if job_ad.company_context else "N/A"
+        if language_code.startswith("sv"):
+            greeting_line = "Hej rekryteringsteamet,"
+            language_instruction = "Skriv enbart på svenska. Håll hälsning, brödtext och avslut på svenska. Blanda inte in engelska ord eller fraser förutom företagsnamn och produktnamn."
+        else:
+            greeting_line = "Dear Hiring Team,"
+            language_instruction = "Write entirely in English. Keep the greeting, body, and closing in English. Do not mix languages except for company names and product names."
+
+        return (
+            "Task: Write a tailored cover letter in Markdown for the target role.\n\n"
+            f"Language requirement: {language_instruction}\n\n"
+            "Hard constraints:\n"
+            "1) Use ONLY the selected facts entries.\n"
+            "2) Do NOT invent skills, outcomes, dates, companies, or metrics.\n"
+            "3) If required information is missing, avoid the claim entirely. Do not borrow job-ad skills as personal experience unless they appear in selected facts.\n"
+            "4) Keep it concise, specific, and role-matched.\n"
+            "5) Do NOT include disclaimers, meta commentary, or notes about missing requirements.\n"
+            "6) Avoid opinion/intent language (for example: I believe, I look forward, eager to) unless explicit in facts.\n"
+            "7) Do NOT convert company requirements into personal skill/readiness claims unless explicit in selected facts.\n"
+            "8) Output only the cover letter content in Markdown, with no preface text.\n"
+            "9) Prefer action-first factual sentences (who did what) over abstract claims.\n"
+            "10) Include at least one short soft-skill paragraph grounded in selected facts (communication, service, teamwork, or independent work under pressure).\n"
+            "11) Avoid binary contrast templates like 'not X but Y' and dramatic rhetorical framing.\n"
+            "12) Avoid canned scaffolding phrases such as 'I am writing to express my interest', 'At the end of the day', and 'It is important to note that'.\n"
+            "13) Keep technical mentions focused: avoid long tool lists; prioritize up to 4 role-relevant technologies.\n\n"
+            "14) Vary sentence length on purpose: follow a long sentence with a short punchy one, and avoid making every sentence the same length.\n"
+            "15) Prefer a mix of short sentences (about 6-10 words) and medium sentences (about 14-22 words).\n\n"
+            "16) If selected facts include differentiator tooling (for example RAG, AI API integration, MCP), include at least one in a concise factual sentence.\n\n"
+            "17) Do not describe yourself as 'an AI'; use the plain student wording from the facts instead.\n\n"
+            "18) Mention the company name exactly at least once in a factual sentence (for example in the opening or closing paragraph).\n\n"
+            "19) Address at least two concrete job-ad focus points from the provided list below.\n"
+            "20) Aim for 220-300 words total. Write 5 short paragraphs.\n"
+            "21) If company context is provided, reference at most one concrete company fact, and do not generalize it into a broader claim. Use it as a factual anchor only.\n\n"
+            "Recommended structure:\n"
+            f"- Greeting line must be exactly: {greeting_line}\n"
+            "- Exactly 5 paragraphs plus greeting line.\n"
+            "- Keep one blank line between paragraphs.\n"
+            f"- Structure variant: {structure_label}\n"
+            f"- Paragraph plan: {paragraph_plan}\n"
+            "- Follow the paragraph plan exactly; do not reuse the same paragraph order across every job ad.\n"
+            "- Keep each paragraph focused on its assigned role in the plan.\n"
+            "- Do not output the letter as a single block paragraph.\n\n"
+            f"Role target:\n"
+            f"- Company: {job_ad.company_name}\n"
+            f"- Role: {job_ad.role_title}\n"
+            f"- Required skills: {', '.join(job_ad.required_skills) or 'N/A'}\n"
+            f"- Nice-to-have skills: {', '.join(job_ad.nice_to_have_skills) or 'N/A'}\n"
+            f"- Tone signals: {job_ad.tone_signals}\n"
+            f"- Responsibilities: {', '.join(job_ad.key_responsibilities) or 'N/A'}\n\n"
+            f"- Focus points to address explicitly: {focus_points_text}\n\n"
+            f"- Company context: {company_context}\n\n"
+            f"Style profile:\n"
+            f"- Tone: {style_profile.tone_description}\n"
+            f"- Avg sentence length: {style_profile.avg_sentence_length}\n"
+            f"- Sentence variance: {style_profile.sentence_length_variance}\n"
+            f"- Characteristic phrases: {', '.join(style_profile.characteristic_phrases) or 'N/A'}\n"
+            f"- Phrases to avoid: {', '.join(style_profile.phrases_to_avoid) or 'N/A'}\n"
+            f"- Structural notes: {style_profile.structural_notes}\n"
+            f"- Anchor snippets:\n{anchor_snippets}\n\n"
+            f"Soft-skill facts to use explicitly (cite by content, not id): {soft_skill_ids_text}\n"
+            "You MUST include at least one sentence that names one employer from those soft-skill facts.\n\n"
+            f"Technical differentiators available in selected facts: {differentiator_text}\n"
+            "If this list is not N/A, mention at least one item explicitly.\n\n"
+            f"Selected facts entries:\n{facts_block}\n"
+            f"{correction_section}"
+        )
+
+
+def _create_default_client() -> AsyncOpenAI:
+    """Create a Deepseek-compatible async client from environment settings."""
+
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise ValueError("DEEPSEEK_API_KEY is required for generation")
+    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    return AsyncOpenAI(api_key=api_key, base_url=base_url)
+
+
+def _extract_response_text(response: Any) -> str:
+    """Extract normalized assistant text from OpenAI-compatible responses."""
+
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        return ""
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        return ""
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = [str(getattr(part, "text", "")) for part in content]
+        return "".join(parts).strip()
+    return str(content).strip()
+
+
+def _format_fact(entry: FactsEntry) -> str:
+    """Serialize one fact entry into compact prompt-friendly text."""
+
+    technologies = ", ".join(entry.technologies) if entry.technologies else "N/A"
+    start_date = str(entry.start_date) if entry.start_date else "N/A"
+    end_date = str(entry.end_date) if entry.end_date else "Present"
+    evidence = entry.evidence_url or "N/A"
+    return (
+        f"- id={entry.id}; category={entry.category}; title={entry.title}; "
+        f"description={entry.description}; technologies={technologies}; "
+        f"start={start_date}; end={end_date}; evidence={evidence}"
+    )
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float from environment with safe fallback."""
+
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _ensure_soft_skill_coverage(
+    selected_facts: list[FactsEntry],
+    facts: FactsDatabase,
+) -> list[FactsEntry]:
+    """Ensure cover-letter context includes at least one soft-skill evidence entry."""
+
+    if not selected_facts:
+        return selected_facts
+
+    selected_ids = {entry.id for entry in selected_facts}
+    if any(_is_soft_skill_entry(entry) for entry in selected_facts):
+        return selected_facts
+
+    for candidate in facts.entries:
+        if candidate.id in selected_ids:
+            continue
+        if _is_soft_skill_entry(candidate):
+            return [*selected_facts, candidate]
+
+    return selected_facts
+
+
+def _ensure_founder_coverage(
+    selected_facts: list[FactsEntry],
+    facts: FactsDatabase,
+    job_ad: JobAd,
+) -> list[FactsEntry]:
+    """Include the founder/self-employed fact when the role rewards ownership and communication."""
+
+    if any("thatsneatly" in entry.title.lower() for entry in selected_facts):
+        return selected_facts
+
+    source_text = f"{job_ad.role_title} {job_ad.tone_signals} {job_ad.source_text or ''} {' '.join(job_ad.key_responsibilities)} {' '.join(job_ad.required_skills)}".lower()
+    relevance_markers = (
+        "team",
+        "communicat",
+        "collaboration",
+        "independent",
+        "ownership",
+        "consult",
+        "ambassador",
+        "in-house",
+        "learning from others",
+        "be om hjälp",
+        "lära ut",
+    )
+    if not any(marker in source_text for marker in relevance_markers):
+        return selected_facts
+
+    for candidate in facts.entries:
+        if candidate.category != "experience":
+            continue
+        if "thatsneatly" in candidate.title.lower():
+            return [*selected_facts, candidate]
+
+    return selected_facts
+
+
+def _is_soft_skill_entry(entry: FactsEntry) -> bool:
+    """Detect facts likely to support grounded people-skill statements."""
+
+    if entry.category != "experience":
+        return False
+
+    haystack = f"{entry.title} {entry.description} {' '.join(entry.technologies)}".lower()
+    return any(token in haystack for token in _SOFT_SKILL_HINTS)
+
+
+def _collect_differentiator_terms(selected_facts: list[FactsEntry]) -> list[str]:
+    """Collect concise advanced-tooling terms available in selected facts."""
+
+    found: list[str] = []
+    seen: set[str] = set()
+    for entry in selected_facts:
+        blob = f"{entry.title} {entry.description} {' '.join(entry.technologies)}".lower()
+        for term in _TECH_DIFFERENTIATOR_HINTS:
+            normalized = term.lower()
+            if normalized in blob and normalized not in seen:
+                found.append(term)
+                seen.add(normalized)
+    return found[:3]
+
+
+def _ensure_differentiator_mention(text: str, selected_facts: list[FactsEntry]) -> str:
+    """Inject one concise factual sentence when key differentiators are omitted."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    differentiators = _collect_differentiator_terms(selected_facts)
+    if not differentiators:
+        return text
+
+    draft_lower = draft.lower()
+    present = [term for term in differentiators if term.lower() in draft_lower]
+    if present:
+        return text
+
+    sentence = f"Relevant tooling in my experience includes {differentiators[0]}."
+
+    if draft.endswith("\n"):
+        return f"{draft}{sentence}\n"
+    return f"{draft}\n\n{sentence}"
+
+
+def _remove_low_value_license_line(text: str, job_ad: JobAd) -> str:
+    """Drop driver's-license statements unless the role explicitly requires it."""
+
+    role_context = " ".join(
+        [
+            job_ad.role_title,
+            job_ad.source_text or "",
+            " ".join(job_ad.required_skills),
+            " ".join(job_ad.nice_to_have_skills),
+        ]
+    ).lower()
+
+    requires_license = any(
+        marker in role_context
+        for marker in ("driver", "driving license", "korkort", "körkort", "class b")
+    )
+    if requires_license:
+        return text
+
+    lines = text.splitlines()
+    filtered = [
+        line
+        for line in lines
+        if not any(
+            marker in line.lower()
+            for marker in ("driver's license", "driving license", "class b", "korkort", "körkort")
+        )
+    ]
+    return "\n".join(filtered).strip()
+
+
+def _ensure_soft_skill_grounding(text: str, selected_facts: list[FactsEntry]) -> str:
+    """Ensure at least one explicit soft-skill sentence grounded in selected experience facts."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    soft_entries = [entry for entry in selected_facts if _is_soft_skill_entry(entry)]
+    if not soft_entries:
+        return text
+
+    # If the draft already contains soft-skill language, do not append a fixed
+    # fallback sentence that can become repetitive across job ads.
+    if _has_soft_skill_language(draft):
+        return text
+
+    draft_lower = draft.lower()
+    for entry in soft_entries:
+        company = _extract_company_from_title(entry.title)
+        if company and company.lower() in draft_lower:
+            return text
+
+    anchor = soft_entries[0]
+    company = _extract_company_from_title(anchor.title) or "a prior role"
+    summary = _soft_skill_summary(anchor.description)
+    sentence = _soft_skill_fallback_sentence(company, summary, draft)
+    return f"{draft}\n\n{sentence}"
+
+
+def _ground_company_and_founder_sentences(
+    text: str,
+    selected_facts: list[FactsEntry],
+    job_ad: JobAd,
+) -> str:
+    """Replace loose company and founder wording with exact grounded statements."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    draft = re.sub(
+        r"Som egen företagare på Thatsneatly hade jag ansvar för allt från supply chain till webbutveckling och SEO-analys\.",
+        "Som grundare av Thatsneatly pitchade jag en affärsplan och finansmodell till Almi, säkrade startkapital och byggde den digitala storefront-pipelinen.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Som grundare av Thatsneatly hanterade jag internationell logistik och webbutveckling\.",
+        "Som grundare av Thatsneatly pitchade jag en affärsplan och finansmodell till Almi, säkrade startkapital och byggde den digitala storefront-pipelinen.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Som grundare av Thatsneatly har jag jobbat i tvärfunktionella team och presenterat tekniska framsteg tydligt för olika målgrupper\.",
+        "Som grundare av Thatsneatly pitchade jag en affärsplan och finansmodell till Almi, säkrade startkapital och byggde den digitala storefront-pipelinen.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Combitechs fokus på telekom och försvar inspirerar mig\.",
+        "Combitech beskriver sig som en nordisk tech-, lösnings- och konsultpartner med fokus på ett smartare, mer hållbart och mer motståndskraftigt samhälle.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag vill bidra med mina kunskaper i Python, C\+\+ och Java till era komplexa system\.",
+        "Jag arbetar praktiskt med Python och Git i projekt som kräver struktur och noggrannhet.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag är bekväm med LEMP-stacken\.",
+        "Jag arbetar praktiskt med Python, Git och AI-pipelines i egna projekt.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Tekniskt sett är jag trygg med LEMP-stacken\.",
+        "Jag arbetar praktiskt med Python, Git och AI-pipelines i egna projekt.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag bygger gärna vidare inom det området\.",
+        "Det är ett område där jag vill fortsätta utvecklas genom tydliga, praktiska leveranser.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Rollens fokus på komplexa utredningar hos Lysio Research passar min bakgrund\.",
+        "Lysio Research arbetar med komplexa utredningar och datadrivna arbetsflöden. Jag trivs i miljöer där teknik behöver göra information tydligare och mer användbar.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Det skapar meningsfulla problem att lösa\.",
+        "Det är precis den typen av arbete där jag brukar bidra bäst, eftersom jag gillar att göra tekniska flöden mer strukturerade och lättare att följa.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag är redo att börja och ser fram emot nästa steg\.",
+        "Jag ser fram emot att bidra med ett strukturerat arbetssätt och erfarenhet av att leverera praktiska lösningar under tidspress.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    draft = re.sub(
+        r"Jag är bekväm med att bygga liknande pipeline-baserade verktyg för era kunder\.",
+        "Jag har byggt flera pipeline-baserade verktyg, bland annat AI-system för dokumentation och automatisering, och tar gärna med det arbetssättet vidare.",
+        draft,
+        flags=re.IGNORECASE,
+    )
+    return draft
+
+
+def _cap_cover_letter_length(text: str, max_words: int = 280) -> str:
+    """Trim a cover letter to a safe ceiling while keeping complete sentences."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    if len(draft.split()) <= max_words:
+        return draft
+
+    paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", draft) if paragraph.strip()]
+    if not paragraphs:
+        return draft
+
+    trimmed_paragraphs: list[str] = [paragraphs[0]]
+    current_words = len(paragraphs[0].split())
+
+    for paragraph in paragraphs[1:]:
+        if current_words >= max_words:
+            break
+
+        sentences = [segment.strip() for segment in re.split(r"(?<=[.!?])\s+", paragraph) if segment.strip()]
+        kept_sentences: list[str] = []
+        for sentence in sentences:
+            sentence_words = len(sentence.split())
+            if current_words + sentence_words > max_words:
+                break
+            kept_sentences.append(sentence)
+            current_words += sentence_words
+
+        if kept_sentences:
+            trimmed_paragraphs.append(" ".join(kept_sentences))
+
+    return "\n\n".join(trimmed_paragraphs).strip()
+
+
+def _select_cover_letter_structure(job_ad: JobAd) -> dict[str, str]:
+    """Choose a deterministic paragraph blueprint to reduce cross-letter sameness."""
+
+    key = f"{job_ad.company_name}|{job_ad.role_title}|{job_ad.source_language}".strip().lower()
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    variant_index = int(digest[:2], 16) % 4
+
+    variants = [
+        {
+            "label": "technical-first",
+            "paragraph_plan": "1) short fit opener, 2) technical example, 3) collaboration/service fact, 4) company fit, 5) concise close",
+        },
+        {
+            "label": "experience-first",
+            "paragraph_plan": "1) short fit opener, 2) collaboration/service fact, 3) technical example, 4) company fit, 5) concise close",
+        },
+        {
+            "label": "company-first",
+            "paragraph_plan": "1) short fit opener, 2) company fit with one grounded company fact, 3) technical example, 4) collaboration/service fact, 5) concise close",
+        },
+        {
+            "label": "people-first",
+            "paragraph_plan": "1) short fit opener, 2) collaboration/service fact, 3) company fit, 4) technical example, 5) concise close",
+        },
+    ]
+    return variants[variant_index]
+
+
+def _append_cover_letter_signoff(text: str, job_ad: JobAd) -> str:
+    """Append a stable sign-off block if one is missing."""
+
+    draft = text.strip()
+    if not draft:
+        return text
+
+    lower = draft.lower()
+    if any(marker in lower for marker in ("med vänliga hälsningar", "vänliga hälsningar", "best regards", "sincerely")):
+        return draft
+
+    language_code = job_ad.source_language.lower() if job_ad.source_language else "en"
+    if language_code.startswith("sv"):
+        closing_line = "Med vänliga hälsningar,"
+    else:
+        closing_line = "Best regards,"
+
+    applicant_name = "John"
+    return f"{draft}\n\n{closing_line}\n{applicant_name}"
+
+
+def _has_soft_skill_language(text: str) -> bool:
+    """Detect whether the draft already contains concrete people-skill wording."""
+
+    lower = text.lower()
+    return any(token in lower for token in _SOFT_SKILL_LANGUAGE_HINTS)
+
+
+def _soft_skill_fallback_sentence(company: str, summary: str, draft: str) -> str:
+    """Build a varied fallback sentence to avoid repeating one fixed phrasing."""
+
+    templates = (
+        "At {company}, I developed {summary}.",
+        "My experience at {company} strengthened {summary}.",
+        "Working at {company}, I built {summary}.",
+    )
+    idx = sum(ord(char) for char in draft) % len(templates)
+    return templates[idx].format(company=company, summary=summary)
+
+
+def _extract_company_from_title(title: str) -> str | None:
+    """Extract employer name from titles shaped like 'Role at Company ...'."""
+
+    match = re.search(r"\bat\s+([^,]+)", title, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _soft_skill_summary(description: str) -> str:
+    """Build a compact soft-skill summary grounded in the fact description."""
+
+    lower = description.lower()
+    if "accuracy" in lower and "under pressure" in lower:
+        return "accuracy and independent execution under pressure"
+    if "customer" in lower or "service" in lower or "teamwork" in lower:
+        return "customer-facing communication and teamwork"
+    if "technical support" in lower or "maintenance" in lower:
+        return "clear communication and practical troubleshooting"
+    return "reliable collaboration and day-to-day ownership"
+
+
+def _extract_job_ad_focus_points(job_ad: JobAd) -> list[str]:
+    """Collect concise, actionable focus points from the parsed job ad."""
+
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    for item in [*job_ad.required_skills, *job_ad.nice_to_have_skills, *job_ad.key_responsibilities]:
+        cleaned = re.sub(r"\s+", " ", item.strip())
+        if not cleaned:
+            continue
+        lowered = cleaned.lower()
+        if lowered in seen:
+            continue
+        if len(cleaned) > 64:
+            cleaned = cleaned[:64].rstrip() + "..."
+        seen.add(lowered)
+        collected.append(cleaned)
+        if len(collected) >= 8:
+            break
+
+    return collected

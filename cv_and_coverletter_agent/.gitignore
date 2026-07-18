@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.env
+humanize-text-skill-main/
+*.pyc
+*.pyo
+*.pyd
+coverage.xml
+htmlcov/
+outputs/
+outputs_cl/
+outputs_cv/
+data/facts_personal_.yaml

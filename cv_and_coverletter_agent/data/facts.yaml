@@ -1,0 +1,220 @@
+entries:
+- id: profile-identity
+  category: skill
+  title: Profile Identity
+  description: "Name: Alex Ren\nAddress: Lergatan 12, 412 50 Goteborg\nPhone: 070-000 00 00\nEmail: alex.ren@example.com\nLinkedIn: linkedin.com/in/alex-ren"
+  technologies:
+  - profile
+- id: experience-played-internship-software-ai-engineering
+  category: experience
+  title: AI Engineering Intern (LIA) - Played Systems
+  description: Team-led development of an AI-powered GitLab repository analyzer that
+    auto-generates README files and API contract documentation across multiple microservice
+    repositories. Designed a RAG pipeline using MongoDB Atlas for vector storage, the Gemini
+    API for generation, and self-hosted BGE embeddings. Set up GitLab CI/CD, managed branching
+    strategy, conducted API contract evaluation across six repositories, and presented technical
+    progress as an informal team lead. Internship periods were Sep-Nov 2025 and Feb-May 2026.
+  technologies:
+  - python
+  - mongodb
+  - machine-learning
+  - AI API integration
+  - CI/CD pipeline
+  - RAG
+  - MongoDB Atlas
+  - Gemini API
+  - BGE embeddings
+  - Git/gitlab
+  evidence_url: https://github.com/example/my_projects
+- id: project-ai-clip-highlighter
+  category: project
+  title: AI Clip Highlighter
+  description: Developed a Python application that turns YouTube videos into AI-selected,
+    captioned 9:16 highlight clips through a multi-stage pipeline with automated
+    processing, testing, and error handling using Python, faster-whisper, DeepSeek
+    API, and FFmpeg.
+  technologies:
+  - Python
+  - faster-whisper
+  - DeepSeek API
+  - FFmpeg
+- id: project-home-automation-diy-systems
+  category: project
+  title: Home Automation and DIY Systems
+  description: Built a Python and AutoHotkey automation system to control an AV
+    receiver via Broadlink IR and configured a Raspberry Pi 5 running Home Assistant
+    for smart home automation.
+  technologies:
+  - Python
+  - AutoHotkey
+  - Broadlink IR
+  - Raspberry Pi 5
+  - Home Assistant
+- id: experience-tidycart-founder-tech-lead
+  category: experience
+  title: Founder and Tech Lead - TidyCart commerce venture
+  description: Pitched a business plan and financial model to Northcap Growth,
+    secured startup capital (200,000 SEK), managed international supply chain logistics,
+    set up banking and tax structures, and engineered the digital storefront pipeline
+    with landing page optimization, SEO analytics, and target-audience tracking.
+  technologies:
+  - Business Planning
+  - Supply Chain
+  - SEO
+  - Analytics
+  - Banking Setup
+  - Web Development
+- id: education-northbridge-ai-software-development
+  category: education
+  title: Northbridge Institute Higher Vocational Education Diploma in AI and Software Development
+  description: Completed a Higher Vocational Education Diploma in AI and Software
+    Development (415 YH credits) with a practical focus on Python, backend development,
+    and applied AI workflows.
+  technologies:
+  - Python
+  - AI
+  - Software Development
+- id: education-westport-mechanical-engineering
+  category: education
+  title: Westport Technical University BSc Mechanical Engineering
+  description: Completed 90 of 180 credits in mechanical engineering before changing
+    direction toward software and AI.
+  technologies:
+  - Mechanical Engineering
+  - Mathematics
+- id: experience-northport-forklift-operator
+  category: experience
+  title: Forklift Operator at Northport Logistics via ShiftTalent
+  description: Worked in a warehouse environment handling picking and packing work
+    alongside forklift operation at a fast pace; this work developed accuracy and
+    the ability to work independently under pressure, and I am comfortable working
+    independently and delivering accurate results.
+  technologies:
+  - Forklift A
+  - Forklift B
+  - Warehouse Operations
+  - Picking and Packing
+- id: experience-harbor-palace-waiter
+  category: experience
+  title: Waiter at Harbor Palace
+  description: Worked as a waiter and built service experience in a fast-moving customer-facing
+    environment.
+  technologies:
+  - Customer Service
+  - Teamwork
+- id: experience-corelane-solutions-it-administrator
+  category: experience
+  title: IT Administrator at Corelane Solutions
+  description: Worked as an IT administrator handling system maintenance and technical
+    support, including practical troubleshooting in day-to-day technical operations.
+  technologies:
+  - System Maintenance
+  - Technical Support
+  - IT Administration
+- id: skill-languages
+  category: skill
+  title: Languages
+  description: Speak Swedish and Vietnamese natively and English fluently in both
+    speech and writing.
+  technologies:
+  - Swedish
+  - Vietnamese
+  - English
+- id: skill-programming-and-ai-tooling
+  category: skill
+  title: Programming and AI Tooling
+  description: Comfortable working with Python, SQL, scikit-learn, NumPy, Pandas,
+    OpenCV, RAG pipelines, prompt engineering, embeddings, and LLM API integrations,
+    and comfortable delivering production-facing tools and presenting technical progress
+    clearly. Comfortable working with vector search and practical LLM system integration.
+  technologies:
+  - Python
+  - SQL
+  - scikit-learn
+  - NumPy
+  - Pandas
+  - OpenCV
+  - RAG
+  - Vector Search
+  - Prompt Engineering
+  - Gemini
+  - Claude/Anthropic API
+  - GPT
+  - Ollama
+  - MCP
+- id: project-ai-job-application-agent
+  category: project
+  title: AI Job Application Agent
+  description: Built an autonomous CV and cover-letter generation system using a
+    harness-and-loop architecture where a facts database grounds output in verified
+    experience and a bounded generate-evaluate-retry loop catches hallucinations and
+    generic phrasing. Designed deterministic fact-relevance scoring and evaluator
+    logic from scratch; used AI-assisted development for selected boilerplate.
+  technologies:
+  - Python
+  - Anthropic API
+  - Harness and loop engineering
+  - Generate-evaluate-retry
+  - Deterministic scoring
+  - Evaluator design
+- id: skill-agent-engineering-and-evaluation
+  category: skill
+  title: Agent Engineering and Evaluation
+  description: Practical experience with harness/loop engineering, generate-evaluate-retry
+    architectures, tool calling and function schemas, context engineering, and
+    state/memory design. Also experienced in eval design, failure-mode analysis,
+    output verification, and regression testing for non-deterministic systems.
+  technologies:
+  - Agent orchestration
+  - Tool calling
+  - Function schemas
+  - Context engineering
+  - State and memory design
+  - Eval design
+  - Failure mode analysis
+  - Output verification
+  - Regression testing
+- id: skill-frameworks-and-platforms
+  category: skill
+  title: Frameworks and Platforms
+  description: Comfortable with common AI/application frameworks and deployment
+    tooling used in practical project delivery.
+  technologies:
+  - LangChain
+  - LangGraph
+  - Docker
+  - Git
+  - MongoDB
+  - Vector databases
+- id: skill-cad-cam-tools
+  category: skill
+  title: CAD/CAM Tools
+  description: Prior hands-on experience with CAD/CAM tooling from earlier studies
+    and technical work.
+  technologies:
+  - Catia V5
+  - AutoCAD
+- id: skill-web-development
+  category: skill
+  title: Web Development
+  description: Comfortable building simple internal tools and web apps with Flask,
+    Streamlit, and Django.
+  technologies:
+  - Flask
+  - Streamlit
+  - Django
+- id: skill-driving-license
+  category: skill
+  title: Driving License
+  description: Hold a manual class B driver's license.
+  technologies:
+  - Driver's License B (Manual)
+- id: skill-personal-programming-practice
+  category: skill
+  title: Personal Programming Practice
+  description: I also spend time programming in my spare time, building various
+    programs.
+  technologies:
+  - Python
+  - Personal Projects
+source_path: data\facts.yaml
